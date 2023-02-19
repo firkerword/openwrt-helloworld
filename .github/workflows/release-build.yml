@@ -55,4 +55,18 @@ jobs:
 
       - name: TG
         run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人${{ github.event.inputs.tag }}-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +@%Y%m%d)%0A下载地址：https://github.com/firkerword/openwrt-Exclusive/releases/tag/${{ github.event.inputs.tag }}-${{ env.TAG_TIME }}"
-  
+
+      - name: Old workflow
+        uses: FunctionXJB/delete-workflow-runs@main
+        with:
+          retain_days: 180
+          keep_minimum_runs: 10
+
+      - name: Old Releases
+        uses: dev-drprasad/delete-older-releases@v0.2.1
+        if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+        with:
+          keep_latest: 20
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.workflow_token }}
