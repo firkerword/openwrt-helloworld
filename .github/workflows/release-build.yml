@@ -31,7 +31,10 @@ jobs:
           FEEDNAME: packages_ci
           PACKAGES: luci-app-${{ github.event.inputs.tag }}
           NO_REFRESH_CHECK: true
-
+      - name: Time Work
+        run:
+          echo "TAG_TIME=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -41,15 +44,15 @@ jobs:
       - name: Upload packages
         uses: ncipollo/release-action@v1
         with:
-          name: "${{ github.event.inputs.tag }}-${{ matrix.arch }}-$(TZ='Asia/Shanghai' date +@%Y%m%d)"
+          name: "${{ github.event.inputs.tag }}-${{ matrix.arch }}-${{ env.TAG_TIME }}"
           token: ${{ secrets.workflow_token }}
           allowUpdates: true
           replacesArtifacts: true
-          tag: "${{ github.event.inputs.tag }}-$(TZ='Asia/Shanghai' date +@%Y%m%d)"
+          tag: "${{ github.event.inputs.tag }}-${{ env.TAG_TIME }}"
           body: |
             luci-app-${{ github.event.inputs.tag }} for OpemWrt.
           artifacts: "bin/packages/${{ matrix.arch }}/packages_ci/*.ipk"
 
       - name: TG
-        run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人${{ github.event.inputs.tag }}-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +@%Y%m%d)%0A下载地址：https://github.com/firkerword/openwrt-Exclusive/releases/tag/${{ github.event.inputs.tag }}-$(TZ='Asia/Shanghai' date +@%Y%m%d)"
+        run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人${{ github.event.inputs.tag }}-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +@%Y%m%d)%0A下载地址：https://github.com/firkerword/openwrt-Exclusive/releases/tag/${{ github.event.inputs.tag }}-${{ env.TAG_TIME }}"
   
