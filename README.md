@@ -1,3 +1,2 @@
-# Psswall & SSRP 插件防炸上游备份 - v2ray-core v5
-
-## openwrt 22.03
+# openwrt-packages
+Firker常用 OpenWrt 软件包源码合集，每天自动更新，建议使用 lean 源码
