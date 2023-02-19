@@ -33,7 +33,7 @@ jobs:
           NO_REFRESH_CHECK: true
       - name: Time Work
         run:
-          echo "TAG_TIME=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          echo "TAG_TIME=$(date +"%Y%m%d")" >> $GITHUB_ENV
         
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -54,7 +54,7 @@ jobs:
           artifacts: "bin/packages/${{ matrix.arch }}/packages_ci/*.ipk"
 
       - name: TG
-        run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人${{ github.event.inputs.tag }}-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +@%Y%m%d)%0A下载地址：https://github.com/firkerword/openwrt-Exclusive/releases/tag/${{ github.event.inputs.tag }}-${{ env.TAG_TIME }}"
+        run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人${{ github.event.inputs.tag }}-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +%Y年%m月%d日)%0A下载地址：https://github.com/firkerword/openwrt-helloworld/releases/tag/${{ github.event.inputs.tag }}-${{ env.TAG_TIME }}"
 
       - name: Old workflow
         uses: FunctionXJB/delete-workflow-runs@main
