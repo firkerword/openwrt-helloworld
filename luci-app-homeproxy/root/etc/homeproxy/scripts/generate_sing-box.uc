@@ -175,9 +175,9 @@ function generate_outbound(node) {
 		multiplex: (node.multiplex === '1') ? {
 			enabled: true,
 			protocol: node.multiplex_protocol,
-			max_connections: node.multiplex_max_connections,
-			min_streams: node.multiplex_min_streams,
-			max_streams: node.multiplex_max_streams
+			max_connections: strToInt(node.multiplex_max_connections),
+			min_streams: strToInt(node.multiplex_min_streams),
+			max_streams: strToInt(node.multiplex_max_streams)
 		} : null,
 		tls: (node.tls === '1') ? {
 			enabled: true,
@@ -204,7 +204,7 @@ function generate_outbound(node) {
 			host: node.http_host || node.ws_host,
 			path: node.http_path || node.ws_path,
 			method: node.http_method,
-			max_early_data: node.websocket_early_data,
+			max_early_data: strToInt(node.websocket_early_data),
 			early_data_header_name: node.websocket_early_data_header,
 			service_name: node.grpc_servicename
 		} : null,
@@ -453,8 +453,6 @@ if (server_enabled === '1')
 			up_mbps: strToInt(cfg.hysteria_up_mbps),
 			down_mbps: strToInt(cfg.hysteria_down_mbps),
 			obfs: cfg.hysteria_obfs_password,
-			auth: (cfg.hysteria_auth_type === 'base64') ? cfg.hysteria_auth_payload : null,
-			auth_str: (cfg.hysteria_auth_type === 'string') ? cfg.hysteria_auth_payload : null,
 			recv_window_conn: strToInt(cfg.hysteria_recv_window_conn),
 			recv_window_client: strToInt(cfg.hysteria_revc_window_client),
 			max_conn_client: strToInt(cfg.hysteria_max_conn_client),
@@ -464,15 +462,18 @@ if (server_enabled === '1')
 			method: (cfg.type === 'shadowsocks') ? cfg.shadowsocks_encrypt_method : null,
 			password: (cfg.type in ['shadowsocks', 'shadowtls']) ? cfg.password : null,
 
-			/* ShadowTLS */
-			version: (cfg.type === 'shadowtls') ? strToInt(cfg.shadowtls_version) : null,
-
-			/* HTTP / Socks / Trojan / VMess */
+			/* HTTP / Hysteria / Socks / Trojan / VMess */
 			users: (cfg.type !== 'shadowsocks') ? [
 				{
-					name: (cfg.type in ['trojan', 'vmess']) ? 'cfg-' + cfg['.name'] + '-server' : null,
+					name: !(cfg.type in ['http', 'socks']) ? 'cfg-' + cfg['.name'] + '-server' : null,
 					username: cfg.username,
 					password: cfg.password,
+
+					/* Hysteria */
+					auth: (cfg.hysteria_auth_type === 'base64') ? cfg.hysteria_auth_payload : null,
+					auth_str: (cfg.hysteria_auth_type === 'string') ? cfg.hysteria_auth_payload : null,
+
+					/* VMess */
 					uuid: cfg.uuid,
 					alterId: strToInt(cfg.vmess_alterid)
 				}
@@ -506,8 +507,11 @@ if (server_enabled === '1')
 
 			transport: !isEmpty(cfg.transport) ? {
 				type: cfg.transport,
-				host: cfg.http_host || cfg.ws_host,
+				host: cfg.http_host,
 				path: cfg.http_path || cfg.ws_path,
+				headers: cfg.ws_host ? {
+					Host: cfg.ws_host
+				} : null,
 				method: cfg.http_method,
 				max_early_data: cfg.websocket_early_data,
 				early_data_header_name: cfg.websocket_early_data_header,
