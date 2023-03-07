@@ -184,13 +184,63 @@ end
 
 s:tab("DNS", translate("DNS"))
 
+if api.is_finded("smartdns") then
+    dns_shunt = s:taboption("DNS", ListValue, "dns_shunt", translate("DNS Shunt"))
+    dns_shunt:value("dnsmasq", "Dnsmasq")
+    dns_shunt:value("smartdns", "SmartDNS")
+
+    group_domestic = s:taboption("DNS", Value, "group_domestic", translate("Domestic group name"))
+    group_domestic.placeholder = "local"
+    group_domestic:depends("dns_shunt", "smartdns")
+    group_domestic.description = translate("You only need to configure domestic DNS packets in SmartDNS and set it redirect or as Dnsmasq upstream, and fill in the domestic DNS group name here.")
+end
+
 o = s:taboption("DNS", Flag, "filter_proxy_ipv6", translate("Filter Proxy Host IPv6"), translate("Experimental feature."))
 o.default = "0"
 
+if api.is_finded("smartdns") then
+    o = s:taboption("DNS", DynamicList, "smartdns_remote_dns", translate("Remote DNS"))
+    o:value("tcp://1.1.1.1")
+    o:value("tcp://8.8.4.4")
+    o:value("tcp://8.8.8.8")
+    o:value("tcp://9.9.9.9")
+    o:value("tcp://208.67.222.222")
+    o:value("tls://1.1.1.1")
+    o:value("tls://8.8.4.4")
+    o:value("tls://8.8.8.8")
+    o:value("tls://9.9.9.9")
+    o:value("tls://208.67.222.222")
+    o:value("https://1.1.1.1/dns-query")
+    o:value("https://8.8.4.4/dns-query")
+    o:value("https://8.8.8.8/dns-query")
+    o:value("https://9.9.9.9/dns-query")
+    o:value("https://208.67.222.222/dns-query")
+    o:value("https://dns.adguard.com/dns-query,176.103.130.130")
+    o:value("https://doh.libredns.gr/dns-query,116.202.176.26")
+    o:value("https://doh.libredns.gr/ads,116.202.176.26")
+    o:depends("dns_shunt", "smartdns")
+    function o.write(self, section, value)
+        local t = {}
+        local t2 = {}
+        if type(value) == "table" then
+            local x
+            for _, x in ipairs(value) do
+                if x and #x > 0 then
+                    if not t2[x] then
+                        t2[x] = x
+                        t[#t+1] = x
+                    end
+                end
+            end
+        else
+            t = { value }
+        end
+        return DynamicList.write(self, section, t)
+    end
+end
+
 ---- DNS Forward Mode
 dns_mode = s:taboption("DNS", ListValue, "dns_mode", translate("Filter Mode"))
-dns_mode.rmempty = false
-dns_mode:reset_values()
 if api.is_finded("dns2tcp") then
     dns_mode:value("dns2tcp", translatef("Requery DNS By %s", "TCP"))
 end
@@ -201,6 +251,9 @@ if has_xray then
     dns_mode:value("xray", "Xray")
 end
 dns_mode:value("udp", translatef("Requery DNS By %s", "UDP"))
+if api.is_finded("smartdns") then
+    dns_mode:depends("dns_shunt", "dnsmasq")
+end
 
 o = s:taboption("DNS", ListValue, "v2ray_dns_mode", " ")
 o:value("tcp", "TCP")
@@ -277,11 +330,19 @@ o.rmempty = false
 if has_chnlist and api.is_finded("chinadns-ng") then
     o = s:taboption("DNS", Flag, "chinadns_ng", translate("ChinaDNS-NG"), translate("The effect is better, but will increase the memory."))
     o.default = "0"
-	o:depends({dns_mode = "dns2socks"})
-	o:depends({dns_mode = "dns2tcp"})
-	o:depends({dns_mode = "xray", v2ray_dns_mode = "tcp"})
-	o:depends({dns_mode = "xray", v2ray_dns_mode = "doh"})
-	o:depends({dns_mode = "udp"})
+    if api.is_finded("smartdns") then
+        o:depends({dns_shunt = "dnsmasq", dns_mode = "dns2socks"})
+        o:depends({dns_shunt = "dnsmasq", dns_mode = "dns2tcp"})
+        o:depends({dns_shunt = "dnsmasq", dns_mode = "xray", v2ray_dns_mode = "tcp"})
+        o:depends({dns_shunt = "dnsmasq", dns_mode = "xray", v2ray_dns_mode = "doh"})
+        o:depends({dns_shunt = "dnsmasq", dns_mode = "udp"})
+    else
+        o:depends({dns_mode = "dns2socks"})
+        o:depends({dns_mode = "dns2tcp"})
+        o:depends({dns_mode = "xray", v2ray_dns_mode = "tcp"})
+        o:depends({dns_mode = "xray", v2ray_dns_mode = "doh"})
+        o:depends({dns_mode = "udp"})
+    end
 end
 
 o = s:taboption("DNS", Button, "clear_ipset", translate("Clear IPSET"), translate("Try this feature if the rule modification does not take effect."))
