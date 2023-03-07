@@ -27,7 +27,7 @@ jobs:
       - name: Build
         uses: sbwml/openwrt-gh-action-sdk@go1.20
         env:
-          ARCH: ${{ matrix.arch }}-openwrt-21.02
+          ARCH: ${{ matrix.arch }}-18.06.7
           FEEDNAME: packages_ci
           PACKAGES: luci-app-${{ github.event.inputs.tag }}
           NO_REFRESH_CHECK: true
