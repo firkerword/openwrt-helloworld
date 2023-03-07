@@ -1,4 +1,4 @@
-name: helloworld x86-64
+name: helloworld x86-64 for lede
 
 on:
   repository_dispatch:
