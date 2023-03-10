@@ -29,7 +29,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-master
           FEEDNAME: packages_ci
-          PACKAGES:  xray-plugin
+          PACKAGES:  luci-app-passwall
           NO_REFRESH_CHECK: true
       - name: Time Work
         run:
