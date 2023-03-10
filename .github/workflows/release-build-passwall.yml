@@ -27,7 +27,7 @@ jobs:
       - name: Build
         uses: sbwml/openwrt-gh-action-sdk@go1.20
         env:
-          ARCH: ${{ matrix.arch }}-latest
+          ARCH: ${{ matrix.arch }}-master
           FEEDNAME: packages_ci
           PACKAGES:  xray-plugin
           NO_REFRESH_CHECK: true
