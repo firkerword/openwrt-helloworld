@@ -27,9 +27,9 @@ jobs:
       - name: Build
         uses: sbwml/openwrt-gh-action-sdk@go1.20
         env:
-          ARCH: ${{ matrix.arch }}-openwrt-21.02
+          ARCH: ${{ matrix.arch }}-latest
           FEEDNAME: packages_ci
-          PACKAGES: luci-app-passwall chinadns-ng
+          PACKAGES:  xray-plugin
           NO_REFRESH_CHECK: true
       - name: Time Work
         run:
