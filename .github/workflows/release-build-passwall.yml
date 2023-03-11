@@ -29,7 +29,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-openwrt-21.02
           FEEDNAME: packages_ci
-          PACKAGES:  luci-app-passwall
+          PACKAGES:  chinadns-ng
           NO_REFRESH_CHECK: true
       - name: Time Work
         run:
