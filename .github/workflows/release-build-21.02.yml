@@ -7,7 +7,7 @@ on:
       tag:
         description: 'build tag, eg: "插件名称".'
         required: true
-        default: ''
+        default: 'luci-app-passwall'
 
 jobs:
   build:
@@ -29,7 +29,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}-openwrt-21.02
           FEEDNAME: packages_ci
-          PACKAGES: luci-app-${{ github.event.inputs.tag }}
+          PACKAGES: ${{ github.event.inputs.tag }}
           NO_REFRESH_CHECK: true
       - name: Time Work
         run:
@@ -50,7 +50,7 @@ jobs:
           replacesArtifacts: true
           tag: "${{ github.event.inputs.tag }}-${{ env.TAG_TIME }}"
           body: |
-            luci-app-${{ github.event.inputs.tag }} for OpemWrt.
+            ${{ github.event.inputs.tag }} for OpemWrt.
           artifacts: "bin/packages/${{ matrix.arch }}/packages_ci/*.ipk"
 
       - name: TG
