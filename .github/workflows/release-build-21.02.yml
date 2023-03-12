@@ -7,7 +7,7 @@ on:
       tag:
         description: 'build tag, eg: "插件名称".'
         required: true
-        default: 'luci-app-passwall'
+        default: ''
 
 jobs:
   build:
