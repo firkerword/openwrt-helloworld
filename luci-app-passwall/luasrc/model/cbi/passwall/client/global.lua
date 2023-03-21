@@ -10,66 +10,66 @@ m = Map(appname)
 
 local nodes_table = {}
 for k, e in ipairs(api.get_valid_nodes()) do
-    nodes_table[#nodes_table + 1] = e
+	nodes_table[#nodes_table + 1] = e
 end
 
 local tcp_socks_server = "127.0.0.1" .. ":" .. (uci:get(appname, "@global[0]", "tcp_node_socks_port") or "1070")
 local socks_table = {}
 socks_table[#socks_table + 1] = {
-    id = tcp_socks_server,
-    remarks = tcp_socks_server .. " - " .. translate("TCP Node")
+	id = tcp_socks_server,
+	remarks = tcp_socks_server .. " - " .. translate("TCP Node")
 }
 uci:foreach(appname, "socks", function(s)
-    if s.enabled == "1" and s.node then
-        local id, remarks
-        for k, n in pairs(nodes_table) do
-            if (s.node == n.id) then
-                remarks = n["remark"]; break
-            end
-        end
-        id = "127.0.0.1" .. ":" .. s.port
-        socks_table[#socks_table + 1] = {
-            id = id,
-            remarks = id .. " - " .. (remarks or translate("Misconfigured"))
-        }
-    end
+	if s.enabled == "1" and s.node then
+		local id, remarks
+		for k, n in pairs(nodes_table) do
+			if (s.node == n.id) then
+				remarks = n["remark"]; break
+			end
+		end
+		id = "127.0.0.1" .. ":" .. s.port
+		socks_table[#socks_table + 1] = {
+			id = id,
+			remarks = id .. " - " .. (remarks or translate("Misconfigured"))
+		}
+	end
 end)
 
 local doh_validate = function(self, value, t)
-    if value ~= "" then
-        value = api.trim(value)
-        local flag = 0
-        local util = require "luci.util"
-        local val = util.split(value, ",")
-        local url = val[1]
-        val[1] = nil
-        for i = 1, #val do
-            local v = val[i]
-            if v then
-                if not datatypes.ipmask4(v) then
-                    flag = 1
-                end
-            end
-        end
-        if flag == 0 then
-            return value
-        end
-    end
-    return nil, translate("DoH request address") .. " " .. translate("Format must be:") .. " URL,IP"
+	if value ~= "" then
+		value = api.trim(value)
+		local flag = 0
+		local util = require "luci.util"
+		local val = util.split(value, ",")
+		local url = val[1]
+		val[1] = nil
+		for i = 1, #val do
+			local v = val[i]
+			if v then
+				if not datatypes.ipmask4(v) then
+					flag = 1
+				end
+			end
+		end
+		if flag == 0 then
+			return value
+		end
+	end
+	return nil, translate("DoH request address") .. " " .. translate("Format must be:") .. " URL,IP"
 end
 
 local redir_mode_validate = function(self, value, t)
-    local tcp_proxy_mode_v = tcp_proxy_mode:formvalue(t) or ""
-    local udp_proxy_mode_v = udp_proxy_mode:formvalue(t) or ""
-    local localhost_tcp_proxy_mode_v = localhost_tcp_proxy_mode:formvalue(t) or ""
-    local localhost_udp_proxy_mode_v = localhost_udp_proxy_mode:formvalue(t) or ""
-    local s = tcp_proxy_mode_v .. udp_proxy_mode_v .. localhost_tcp_proxy_mode_v .. localhost_udp_proxy_mode_v
-    if s:find("returnhome") then
-        if s:find("chnroute") or s:find("gfwlist") then
-            return nil, translate("China list or gfwlist cannot be used together with outside China list!")
-        end
-    end
-    return value
+	local tcp_proxy_mode_v = tcp_proxy_mode:formvalue(t) or ""
+	local udp_proxy_mode_v = udp_proxy_mode:formvalue(t) or ""
+	local localhost_tcp_proxy_mode_v = localhost_tcp_proxy_mode:formvalue(t) or ""
+	local localhost_udp_proxy_mode_v = localhost_udp_proxy_mode:formvalue(t) or ""
+	local s = tcp_proxy_mode_v .. udp_proxy_mode_v .. localhost_tcp_proxy_mode_v .. localhost_udp_proxy_mode_v
+	if s:find("returnhome") then
+		if s:find("chnroute") or s:find("gfwlist") then
+			return nil, translate("China list or gfwlist cannot be used together with outside China list!")
+		end
+	end
+	return value
 end
 
 m:append(Template(appname .. "/global/status"))
@@ -89,14 +89,14 @@ tcp_node = s:taboption("Main", ListValue, "tcp_node", "<a style='color: red'>" .
 tcp_node.description = ""
 local current_node = luci.sys.exec(string.format("[ -f '/tmp/etc/%s/id/TCP' ] && echo -n $(cat /tmp/etc/%s/id/TCP)", appname, appname))
 if current_node and current_node ~= "" and current_node ~= "nil" then
-    local n = uci:get_all(appname, current_node)
-    if n then
-        if tonumber(m:get("@auto_switch[0]", "enable") or 0) == 1 then
-            local remarks = api.get_full_node_remarks(n)
-            local url = api.url("node_config", current_node)
-            tcp_node.description = tcp_node.description .. translatef("Current node: %s", string.format('<a href="%s">%s</a>', url, remarks)) .. "<br />"
-        end
-    end
+	local n = uci:get_all(appname, current_node)
+	if n then
+		if tonumber(m:get("@auto_switch[0]", "enable") or 0) == 1 then
+			local remarks = api.get_full_node_remarks(n)
+			local url = api.url("node_config", current_node)
+			tcp_node.description = tcp_node.description .. translatef("Current node: %s", string.format('<a href="%s">%s</a>', url, remarks)) .. "<br />"
+		end
+	end
 end
 tcp_node:value("nil", translate("Close"))
 

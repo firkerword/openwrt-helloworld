@@ -69,6 +69,7 @@ function index()
 	entry({"admin", "services", appname, "update_rules"}, call("update_rules")).leaf = true
 
 	--[[Components update]]
+	entry({"admin", "services", appname, "check_passwall"}, call("app_check")).leaf = true
 	local coms = require "luci.passwall.com"
 	local com
 	for com, _ in pairs(coms) do
@@ -183,9 +184,14 @@ function clear_log()
 end
 
 function status()
-	-- local dns_mode = ucic:get(appname, "@global[0]", "dns_mode")
 	local e = {}
-	e.dns_mode_status = luci.sys.call("netstat -apn | grep ':15353 ' >/dev/null") == 0
+
+	local dns_shunt = ucic:get(appname, "@global[0]", "dns_shunt") or "dnsmasq"
+	if dns_shunt == "smartdns" then
+		e.dns_mode_status = luci.sys.call("pidof smartdns >/dev/null") == 0
+	else
+		e.dns_mode_status = luci.sys.call("netstat -apn | grep ':15353 ' >/dev/null") == 0
+	end
 	e.haproxy_status = luci.sys.call(string.format("top -bn1 | grep -v grep | grep '%s/bin/' | grep haproxy >/dev/null", appname)) == 0
 	e["tcp_node_status"] = luci.sys.call(string.format("top -bn1 | grep -v -E 'grep|acl/|acl_' | grep '%s/bin/' | grep -i 'TCP' >/dev/null", appname)) == 0
 
@@ -401,6 +407,11 @@ end
 
 function server_clear_log()
 	luci.sys.call("echo '' > /tmp/log/passwall_server.log")
+end
+
+function app_check()
+	local json = api.to_check_self()
+	http_write_json(json)
 end
 
 function com_check(comname)
