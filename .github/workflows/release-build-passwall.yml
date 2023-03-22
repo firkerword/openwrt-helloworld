@@ -1,7 +1,7 @@
 name: passwall x86-64
 
 on:
-#  repository_dispatch:
+  repository_dispatch:
   workflow_dispatch:
 
 jobs:
