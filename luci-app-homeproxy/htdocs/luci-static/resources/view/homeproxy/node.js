@@ -214,10 +214,14 @@ function parseShareLink(uri, features) {
 				port: url.port || '80',
 				uuid: url.username,
 				transport: params.get('type') !== 'tcp' ? params.get('type') : null,
-				tls: params.get('security') ? '1' : '0',
+				tls: ['tls', 'xtls', 'reality'].includes(params.get('security')) ? '1' : '0',
 				tls_sni: params.get('sni'),
 				tls_alpn: params.get('alpn') ? decodeURIComponent(params.get('alpn')).split(',') : null,
-				tls_utls: features.with_utls ? params.get('fp') : null
+				tls_reality: (params.get('security') === 'reality') ? '1' : '0',
+				tls_reality_public_key: params.get('pbk') ? decodeURIComponent(params.get('pbk')) : null,
+				tls_reality_short_id: params.get('sid'),
+				tls_utls: features.with_utls ? params.get('fp') : null,
+				vless_flow: ['tls', 'reality'].includes(params.get('security')) ? params.get('flow') : null
 			};
 			switch (params.get('type')) {
 			case 'grpc':
@@ -1078,9 +1082,13 @@ return view.extend({
 			so.depends({'tls': '1', 'type': /^((?!hysteria$).)+$/});
 			so.validate = function(section_id, value) {
 				if (section_id) {
-					let tls_reality = this.map.lookupOption('tls_reality', section_id)[0].formvalue(section_id);
+					let tls_reality = this.map.findElement('id', 'cbid.homeproxy.%s.tls_reality'.format(section_id)).firstElementChild;
 					if (tls_reality.checked && !value)
 						return _('Expecting: %s').format(_('non-empty value'));
+
+					let vless_flow = this.map.lookupOption('vless_flow', section_id)[0].formvalue(section_id);
+					if ((tls_reality.checked || vless_flow) && ['360', 'android'].includes(value))
+						return _('Unsupported fingerprint!');
 				}
 
 				return true;
@@ -1089,7 +1097,7 @@ return view.extend({
 
 			so = ss.option(form.Flag, 'tls_reality', _('REALITY'));
 			so.default = so.disabled;
-			so.depends('tls', '1');
+			so.depends({'tls': '1', 'type': 'vless'});
 			so.modalonly = true;
 
 			so = ss.option(form.Value, 'tls_reality_public_key', _('REALITY public key'));
