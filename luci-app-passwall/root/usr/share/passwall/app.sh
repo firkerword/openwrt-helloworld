@@ -855,7 +855,7 @@ run_redir() {
 				run_socks flag=TCP node=$node bind=0.0.0.0 socks_port=$port config_file=$config_file http_port=$http_port http_config_file=$http_config_file
 			}
 		}
-		
+
 		[ "$tcp_node_socks" = "1" ] && {
 			echo "127.0.0.1:$tcp_node_socks_port" > $TMP_PATH/TCP_SOCKS_server
 		}
@@ -878,7 +878,7 @@ node_switch() {
 		local config_file="${FLAG}.json"
 		local log_file="${FLAG}.log"
 		local port=$(cat $TMP_PORT_PATH/${FLAG})
-		
+
 		[ "$shunt_logic" != "0" ] && {
 			local node=$(config_t_get global ${flag}_node nil)
 			[ "$(config_n_get $node protocol nil)" = "_shunt" ] && {
@@ -1013,7 +1013,7 @@ start_crontab() {
 		echo "$t lua $APP_PATH/rule_update.lua log > /dev/null 2>&1 &" >>/etc/crontabs/root
 		echolog "配置定时任务：自动更新规则。"
 	fi
-	
+
 	TMP_SUB_PATH=$TMP_PATH/sub_crontabs
 	mkdir -p $TMP_SUB_PATH
 	for item in $(uci show ${CONFIG} | grep "=subscribe_list" | cut -d '.' -sf 2 | cut -d '=' -sf 1); do
@@ -1026,7 +1026,7 @@ start_crontab() {
 			echolog "配置定时任务：自动更新【$remark】订阅。"
 		fi
 	done
-	
+
 	[ -d "${TMP_SUB_PATH}" ] && {
 		for name in $(ls ${TMP_SUB_PATH}); do
 			week_update=$(echo $name | awk -F '_' '{print $1}')
@@ -1063,29 +1063,31 @@ start_dns() {
 	DNSMASQ_FILTER_IPV6=$FILTER_PROXY_IPV6
 
 	echolog "过滤服务配置：准备接管域名解析..."
-	local items=$(uci show ${CONFIG} | grep "=acl_rule" | cut -d '.' -sf 2 | cut -d '=' -sf 1)
-	[ -n "$items" ] && {
-		for item in $items; do
-			[ "$(config_n_get $item enabled)" = "1" ] || continue
-			[ "$(config_n_get $item tcp_node)" = "default" ] && [ "$TCP_NODE" != "nil" ] && {
-				local item_tcp_proxy_mode=$(config_n_get $item tcp_proxy_mode default)
-				[ "$item_tcp_proxy_mode" = "default" ] && item_tcp_proxy_mode=$TCP_PROXY_MODE
-				global=$(echo "${global}${item_tcp_proxy_mode}" | grep "global")
-				returnhome=$(echo "${returnhome}${item_tcp_proxy_mode}" | grep "returnhome")
-				chnlist=$(echo "${chnlist}${item_tcp_proxy_mode}" | grep "chnroute")
-				gfwlist=$(echo "${gfwlist}${item_tcp_proxy_mode}" | grep "gfwlist")
-				ACL_TCP_PROXY_MODE=${ACL_TCP_PROXY_MODE}${item_tcp_proxy_mode}
-			}
-			[ "$(config_n_get $item udp_node)" = "default" ] && [ "$UDP_NODE" != "nil" ] && {
-				local item_udp_proxy_mode=$(config_n_get $item udp_proxy_mode default)
-				[ "$item_udp_proxy_mode" = "default" ] && item_udp_proxy_mode=$UDP_PROXY_MODE
-				global=$(echo "${global}${item_udp_proxy_mode}" | grep "global")
-				returnhome=$(echo "${returnhome}${item_udp_proxy_mode}" | grep "returnhome")
-				chnlist=$(echo "${chnlist}${item_udp_proxy_mode}" | grep "chnroute")
-				gfwlist=$(echo "${gfwlist}${item_udp_proxy_mode}" | grep "gfwlist")
-				ACL_UDP_PROXY_MODE=${ACL_UDP_PROXY_MODE}${item_udp_proxy_mode}
-			}
-		done
+	[ "$ENABLED_ACLS" == 1 ] && {
+		local items=$(uci show ${CONFIG} | grep "=acl_rule" | cut -d '.' -sf 2 | cut -d '=' -sf 1)
+		[ -n "$items" ] && {
+			for item in $items; do
+				[ "$(config_n_get $item enabled)" = "1" ] || continue
+				[ "$(config_n_get $item tcp_node)" = "default" ] && [ "$TCP_NODE" != "nil" ] && {
+					local item_tcp_proxy_mode=$(config_n_get $item tcp_proxy_mode default)
+					[ "$item_tcp_proxy_mode" = "default" ] && item_tcp_proxy_mode=$TCP_PROXY_MODE
+					global=$(echo "${global}${item_tcp_proxy_mode}" | grep "global")
+					returnhome=$(echo "${returnhome}${item_tcp_proxy_mode}" | grep "returnhome")
+					chnlist=$(echo "${chnlist}${item_tcp_proxy_mode}" | grep "chnroute")
+					gfwlist=$(echo "${gfwlist}${item_tcp_proxy_mode}" | grep "gfwlist")
+					ACL_TCP_PROXY_MODE=${ACL_TCP_PROXY_MODE}${item_tcp_proxy_mode}
+				}
+				[ "$(config_n_get $item udp_node)" = "default" ] && [ "$UDP_NODE" != "nil" ] && {
+					local item_udp_proxy_mode=$(config_n_get $item udp_proxy_mode default)
+					[ "$item_udp_proxy_mode" = "default" ] && item_udp_proxy_mode=$UDP_PROXY_MODE
+					global=$(echo "${global}${item_udp_proxy_mode}" | grep "global")
+					returnhome=$(echo "${returnhome}${item_udp_proxy_mode}" | grep "returnhome")
+					chnlist=$(echo "${chnlist}${item_udp_proxy_mode}" | grep "chnroute")
+					gfwlist=$(echo "${gfwlist}${item_udp_proxy_mode}" | grep "gfwlist")
+					ACL_UDP_PROXY_MODE=${ACL_UDP_PROXY_MODE}${item_udp_proxy_mode}
+				}
+			done
+		}
 	}
 	
 	case "$DNS_SHUNT" in
@@ -1231,13 +1233,13 @@ add_ip2route() {
 	}
 	local remarks="${1}"
 	[ "$remarks" != "$ip" ] && remarks="${1}(${ip})"
-	
+
 	. /lib/functions/network.sh
 	local gateway device
 	network_get_gateway gateway "$2"
 	network_get_device device "$2"
 	[ -z "${device}" ] && device="$2"
-	
+
 	if [ -n "${gateway}" ]; then
 		route add -host ${ip} gw ${gateway} dev ${device} >/dev/null 2>&1
 		echo "$ip" >> $TMP_ROUTE_PATH/${device}
@@ -1286,7 +1288,7 @@ acl_app() {
 			sid=$(uci -q show "${CONFIG}.${item}" | grep "=acl_rule" | awk -F '=' '{print $1}' | awk -F '.' '{print $2}')
 			eval $(uci -q show "${CONFIG}.${item}" | cut -d'.' -sf 3-)
 			[ "$enabled" = "1" ] || continue
-			
+
 			[ -z "${sources}" ] && continue
 			for s in $sources; do
 				is_iprange=$(lua_api "iprange(\"${s}\")")
@@ -1306,7 +1308,7 @@ acl_app() {
 			[ -z "${rule_list}" ] && continue
 			mkdir -p $TMP_ACL_PATH/$sid
 			echo -e "${rule_list}" | sed '/^$/d' > $TMP_ACL_PATH/$sid/rule_list
-			
+
 			tcp_proxy_mode=${tcp_proxy_mode:-default}
 			udp_proxy_mode=${udp_proxy_mode:-default}
 			tcp_node=${tcp_node:-default}
@@ -1321,7 +1323,7 @@ acl_app() {
 			}
 			[ "$tcp_proxy_mode" = "default" ] && tcp_proxy_mode=$TCP_PROXY_MODE
 			[ "$udp_proxy_mode" = "default" ] && udp_proxy_mode=$UDP_PROXY_MODE
-			
+
 			[ "$tcp_node" != "nil" ] && {
 				if [ "$tcp_node" = "default" ]; then
 					tcp_node=$TCP_NODE
@@ -1370,7 +1372,7 @@ acl_app() {
 									[ "$tcp_proxy_mode" = "gfwlist" ] && _china_ng_default_tag="chn"
 								}
 								[ -n "$_china_ng_default_tag" ] && _china_ng_extra_param="${_china_ng_extra_param} -d ${_china_ng_default_tag}"
-			
+
 								#local _china_ng_log_file="${TMP_ACL_PATH}/${sid}/chinadns-ng.log"
 								local _china_ng_log_file="/dev/null"
 								[ "$filter_proxy_ipv6" = "1" ] && {
@@ -1545,7 +1547,7 @@ start() {
 	else
 		USE_TABLES="iptables"
 	fi
-	
+
 	[ "$ENABLED_DEFAULT_ACL" == 1 ] && {
 		start_redir TCP
 		start_redir UDP
