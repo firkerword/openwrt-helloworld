@@ -20,18 +20,14 @@ local geosite_api = ucic:get_first(name, 'global_rules', "geosite_url", "https:/
 --
 
 local log = function(...)
-    if arg1 then
-        local result = os.date("%Y-%m-%d %H:%M:%S: ") .. table.concat({...}, " ")
-        if arg1 == "log" then
-            local f, err = io.open("/tmp/log/passwall2.log", "a")
-            if f and err == nil then
-                f:write(result .. "\n")
-                f:close()
-            end
-        elseif arg1 == "print" then
-            print(result)
-        end
-    end
+	if arg1 then
+		if arg1 == "log" then
+			api.log(...)
+		elseif arg1 == "print" then
+			local result = os.date("%Y-%m-%d %H:%M:%S: ") .. table.concat({...}, " ")
+			print(result)
+		end
+	end
 end
 
 -- curl
