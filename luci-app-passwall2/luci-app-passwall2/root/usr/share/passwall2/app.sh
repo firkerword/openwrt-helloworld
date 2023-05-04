@@ -350,7 +350,7 @@ run_v2ray() {
 		ln_run "$(first_type $(config_t_get global_app ${type}_file) ${type})" ${type} $V2RAY_DNS_DIRECT_LOG run -c "$V2RAY_DNS_DIRECT_CONFIG"
 		
 		direct_dnsmasq_listen_port=$(get_new_port $(expr $dns_direct_listen_port + 1) udp)
-		run_direct_ipset_dnsmasq listen_port=${direct_dnsmasq_listen_port} server_dns=127.0.0.1#${dns_direct_listen_port} ipset=whitelist,whitelist6 config_file=$TMP_PATH/dnsmasq_${flag}_direct.conf
+		run_ipset_dnsmasq listen_port=${direct_dnsmasq_listen_port} server_dns=127.0.0.1#${dns_direct_listen_port} ipset=whitelist,whitelist6 config_file=$TMP_PATH/dnsmasq_${flag}_direct.conf
 
 		V2RAY_DNS_REMOTE_CONFIG="${TMP_PATH}/${flag}_dns_remote.json"
 		V2RAY_DNS_REMOTE_LOG="${TMP_PATH}/${flag}_dns_remote.log"
@@ -776,12 +776,56 @@ stop_crontab() {
 	#echolog "清除定时执行命令。"
 }
 
-run_direct_ipset_dnsmasq() {
+add_ip2route() {
+	local ip=$(get_host_ip "ipv4" $1)
+	[ -z "$ip" ] && {
+		echolog "  - 无法解析[${1}]，路由表添加失败！"
+		return 1
+	}
+	local remarks="${1}"
+	[ "$remarks" != "$ip" ] && remarks="${1}(${ip})"
+
+	. /lib/functions/network.sh
+	local gateway device
+	network_get_gateway gateway "$2"
+	network_get_device device "$2"
+	[ -z "${device}" ] && device="$2"
+
+	if [ -n "${gateway}" ]; then
+		route add -host ${ip} gw ${gateway} dev ${device} >/dev/null 2>&1
+		echo "$ip" >> $TMP_ROUTE_PATH/${device}
+		echolog "  - [${remarks}]添加到接口[${device}]路由表成功！"
+	else
+		echolog "  - [${remarks}]添加到接口[${device}]路由表失功！原因是找不到[${device}]网关。"
+	fi
+}
+
+delete_ip2route() {
+	[ -d "${TMP_ROUTE_PATH}" ] && {
+		for interface in $(ls ${TMP_ROUTE_PATH}); do
+			for ip in $(cat ${TMP_ROUTE_PATH}/${interface}); do
+				route del -host ${ip} dev ${interface} >/dev/null 2>&1
+			done
+		done
+	}
+}
+
+start_haproxy() {
+	[ "$(config_t_get global_haproxy balancing_enable 0)" != "1" ] && return
+	haproxy_path=${TMP_PATH}/haproxy
+	haproxy_conf="config.cfg"
+	lua $APP_PATH/haproxy.lua -path ${haproxy_path} -conf ${haproxy_conf} -dns ${LOCAL_DNS}
+	ln_run "$(first_type haproxy)" haproxy "/dev/null" -f "${haproxy_path}/${haproxy_conf}"
+}
+
+run_ipset_dnsmasq() {
 	local listen_port server_dns ipset config_file
 	eval_set_val $@
-	echo "port=${listen_port}" >> $config_file
-	echo "server=${server_dns}" >> $config_file
-	echo "ipset=${ipset}" >> $config_file
+	cat <<-EOF > $config_file
+		port=${listen_port}
+		server=${server_dns}
+		ipset=${ipset}
+	EOF
 	ln_run "$(first_type dnsmasq)" "dnsmasq" "/dev/null" -C $config_file
 }
 
@@ -905,6 +949,7 @@ start() {
 	}
 
 	ulimit -n 65535
+	start_haproxy
 	start_socks
 
 	local USE_TABLES="iptables"
@@ -932,6 +977,7 @@ start() {
 stop() {
 	clean_log
 	source $APP_PATH/iptables.sh stop
+	delete_ip2route
 	kill_all v2ray-plugin obfs-local
 	pgrep -f "sleep.*(6s|9s|58s)" | xargs kill -9 >/dev/null 2>&1
 	pgrep -af "${CONFIG}/" | awk '! /app\.sh|subscribe\.lua|rule_update\.lua/{print $1}' | xargs kill -9 >/dev/null 2>&1
@@ -995,6 +1041,9 @@ mkdir -p /tmp/etc $TMP_PATH $TMP_BIN_PATH $TMP_SCRIPT_FUNC_PATH $TMP_ID_PATH $TM
 arg1=$1
 shift
 case $arg1 in
+add_ip2route)
+	add_ip2route $@
+	;;
 get_new_port)
 	get_new_port $@
 	;;
