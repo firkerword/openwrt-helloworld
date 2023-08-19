@@ -1061,7 +1061,7 @@ add_firewall_rule() {
 	#  加载ACLS
 	load_acl
 		
-	for iface in $IFACES; do
+	for iface in $(ls ${TMP_IFACE_PATH}); do
 		$ipt_n -I PSW_OUTPUT -o $iface -j RETURN
 		$ipt_m -I PSW_OUTPUT -o $iface -j RETURN
 	done
@@ -1117,7 +1117,7 @@ del_firewall_rule() {
 	destroy_ipset $IPSET_BLOCKLIST6
 	destroy_ipset $IPSET_WHITELIST6
 
-	echolog "删除相关防火墙规则完成。"
+	$DIR/app.sh echolog "删除相关防火墙规则完成。"
 }
 
 flush_ipset() {

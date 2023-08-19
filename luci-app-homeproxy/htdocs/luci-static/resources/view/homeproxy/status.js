@@ -30,6 +30,35 @@ var css = '				\
 
 var hp_dir = '/var/run/homeproxy';
 
+function getConnStat(self, site) {
+	var callConnStat = rpc.declare({
+		object: 'luci.homeproxy',
+		method: 'connection_check',
+		params: ['site'],
+		expect: { '': {} }
+	});
+
+	self.default = E('div', { 'style': 'cbi-value-field' }, [
+		E('button', {
+			'class': 'btn cbi-button cbi-button-action',
+			'click': ui.createHandlerFn(this, function() {
+				return L.resolveDefault(callConnStat(site), {}).then((ret) => {
+                                        var ele = self.default.firstElementChild.nextElementSibling;
+					if (ret.result) {
+						ele.style.setProperty('color', 'green');
+                                                ele.innerHTML = _('passed');
+					} else {
+						ele.style.setProperty('color', 'red');
+                                                ele.innerHTML = _('failed');
+					}
+				});
+			})
+		}, [ _('Check') ]),
+		' ',
+		E('strong', { 'style': 'color:gray' }, _('unchecked')),
+	]);
+}
+
 function getResVersion(self, type) {
 	var callResVersion = rpc.declare({
 		object: 'luci.homeproxy',
@@ -83,7 +112,7 @@ function getResVersion(self, type) {
 	});
 }
 
-function getRuntimeLog(name) {
+function getRuntimeLog(name, filename) {
 	var callLogClean = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'log_clean',
@@ -101,7 +130,7 @@ function getRuntimeLog(name) {
 
 	var log;
 	poll.add(L.bind(function() {
-		return fs.read_direct(String.format('%s/%s.log', hp_dir, name.toLowerCase()), 'text')
+		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
 		.then(function(res) {
 			log = E('pre', { 'wrap': 'pre' }, [
 				res.trim() || _('Log is empty.')
@@ -131,7 +160,7 @@ function getRuntimeLog(name) {
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
 					'click': ui.createHandlerFn(this, function() {
-						return L.resolveDefault(callLogClean(name.toLowerCase()), {});
+						return L.resolveDefault(callLogClean(filename), {});
 					})
 				}, [ _('Clean log') ])
 			]),
@@ -157,6 +186,16 @@ return view.extend({
 		var routing_mode = uci.get(data[0], 'config', 'routing_mode') || 'bypass_mainland_china';
 
 		m = new form.Map('homeproxy');
+
+		s = m.section(form.NamedSection, 'config', 'homeproxy', _('Connection check'));
+		s.anonymous = true;
+
+		o = s.option(form.DummyValue, '_check_baidu', _('BaiDu'));
+		o.cfgvalue = function() { return getConnStat(this, 'baidu') };
+
+		o = s.option(form.DummyValue, '_check_google', _('Google'));
+		o.cfgvalue = function() { return getConnStat(this, 'google') };
+
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy', _('Resources management'));
 		s.anonymous = true;
@@ -187,11 +226,17 @@ return view.extend({
 		o.cfgvalue = function() { return getResVersion(this, 'gfw_list') };
 		o.rawhtml = true;
 
-		o = s.option(form.DummyValue, '_homeproxy_logview');
-		o.render = L.bind(getRuntimeLog, this, 'HomeProxy');
+		s = m.section(form.NamedSection, 'config', 'homeproxy');
+		s.anonymous = true;
 
-		o = s.option(form.DummyValue, '_sing-box_logview');
-		o.render = L.bind(getRuntimeLog, this, 'sing-box');
+		o = s.option(form.DummyValue, '_homeproxy_logview');
+		o.render = L.bind(getRuntimeLog, this, _('HomeProxy'), 'homeproxy');
+
+		o = s.option(form.DummyValue, '_sing-box-c_logview');
+		o.render = L.bind(getRuntimeLog, this, _('sing-box client'), 'sing-box-c');
+
+		o = s.option(form.DummyValue, '_sing-box-s_logview');
+		o.render = L.bind(getRuntimeLog, this, _('sing-box server'), 'sing-box-s');
 
 		return m.render();
 	},

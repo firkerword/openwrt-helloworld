@@ -177,6 +177,7 @@ function parseShareLink(uri, features) {
 		case 'trojan':
 			/* https://p4gefau1t.github.io/trojan-go/developer/url/ */
 			var url = new URL('http://' + uri[1]);
+			var params = url.searchParams;
 
 			/* Check if password exists */
 			if (!url.username)
@@ -188,9 +189,26 @@ function parseShareLink(uri, features) {
 				address: url.hostname,
 				port: url.port || '80',
 				password: decodeURIComponent(url.username),
+				transport: params.get('type') !== 'tcp' ? params.get('type') : null,
 				tls: '1',
-				tls_sni: url.searchParams.get('sni')
+				tls_sni: params.get('sni')
 			};
+			switch (params.get('type')) {
+			case 'grpc':
+				config.grpc_servicename = params.get('serviceName');
+				break;
+			case 'ws':
+				/* We don't parse "host" param when TLS is enabled, as some providers are abusing it (host vs sni)
+				 * config.ws_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
+				 */
+				config.ws_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				if (config.ws_path && config.ws_path.includes('?ed=')) {
+					config.websocket_early_data_header = 'Sec-WebSocket-Protocol';
+					config.websocket_early_data = config.ws_path.split('?ed=')[1];
+					config.ws_path = config.ws_path.split('?ed=')[0];
+				}
+				break;
+			}
 
 			break;
 		case 'vless':
@@ -235,6 +253,7 @@ function parseShareLink(uri, features) {
 				}
 				break;
 			case 'ws':
+				/* We don't parse "host" param when TLS is enabled, as some providers are abusing it (host vs sni) */
 				config.ws_host = (config.tls !== '1' && params.get('host')) ? decodeURIComponent(params.get('host')) : null;
 				config.ws_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
 				if (config.ws_path && config.ws_path.includes('?ed=')) {
@@ -292,6 +311,7 @@ function parseShareLink(uri, features) {
 				}
 				break;
 			case 'ws':
+				/* We don't parse "host" param when TLS is enabled, as some providers are abusing it (host vs sni) */
 				config.ws_host = (config.tls !== '1') ? uri.host : null;
 				config.ws_path = uri.path;
 				if (config.ws_path && config.ws_path.includes('?ed=')) {
@@ -400,8 +420,9 @@ return view.extend({
 									.then(L.bind(this.map.reset, this.map))
 									.then(L.ui.hideModal)
 									.catch(function() {});
-							} else
+							} else {
 								return ui.hideModal();
+							}
 						})
 					}, [ _('Import') ])
 				])
@@ -921,40 +942,41 @@ return view.extend({
 		so.default = so.disabled;
 		so.depends('type', 'shadowsocks');
 		so.depends('type', 'trojan');
+		so.depends('type', 'vless');
 		so.depends('type', 'vmess');
 		so.modalonly = true;
 
 		so = ss.option(form.ListValue, 'multiplex_protocol', _('Protocol'),
 			_('Multiplex protocol.'));
+		so.value('h2mux');
 		so.value('smux');
 		so.value('yamux');
-		so.default = 'smux';
-		so.depends({'type': 'shadowsocks', 'multiplex': '1'});
-		so.depends({'type': 'trojan', 'multiplex': '1'});
-		so.depends({'type': 'vmess', 'multiplex': '1'});
+		so.default = 'h2mux';
+		so.depends('multiplex', '1');
 		so.rmempty = false;
 		so.modalonly = true;
 
 		so = ss.option(form.Value, 'multiplex_max_connections', _('Maximum connections'));
 		so.datatype = 'uinteger';
-		so.depends({'type': 'shadowsocks', 'multiplex': '1'});
-		so.depends({'type': 'trojan', 'multiplex': '1'});
-		so.depends({'type': 'vmess', 'multiplex': '1'});
+		so.depends('multiplex', '1');
 		so.modalonly = true;
 
 		so = ss.option(form.Value, 'multiplex_min_streams', _('Minimum streams'),
 			_('Minimum multiplexed streams in a connection before opening a new connection.'));
 		so.datatype = 'uinteger';
-		so.depends({'type': 'shadowsocks', 'multiplex': '1'});
-		so.depends({'type': 'trojan', 'multiplex': '1'});
-		so.depends({'type': 'vmess', 'multiplex': '1'});
+		so.depends('multiplex', '1');
 		so.modalonly = true;
 
 		so = ss.option(form.Value, 'multiplex_max_streams', _('Maximum streams'),
 			_('Maximum multiplexed streams in a connection before opening a new connection.<br/>' +
 				'Conflict with <code>Maximum connections</code> and <code>Minimum streams</code>.'));
 		so.datatype = 'uinteger';
-		so.depends({'type': /^(shadowsocks|trojan|vmess)$/, 'multiplex': '1', 'multiplex_max_connections': '', 'multiplex_min_streams': ''});
+		so.depends({'multiplex': '1', 'multiplex_max_connections': '', 'multiplex_min_streams': ''});
+		so.modalonly = true;
+
+		so = ss.option(form.Flag, 'multiplex_padding', _('Enable padding'));
+		so.default = so.disabled;
+		so.depends('multiplex', '1');
 		so.modalonly = true;
 		/* Mux config end */
 
@@ -975,8 +997,9 @@ return view.extend({
 				if (['hysteria', 'shadowtls'].includes(type)) {
 					tls.checked = true;
 					tls.disabled = true;
-				} else
+				} else {
 					tls.disabled = null;
+				}
 			}
 
 			return true;
@@ -1111,7 +1134,6 @@ return view.extend({
 
 			so = ss.option(form.Value, 'tls_reality_short_id', _('REALITY short ID'));
 			so.depends('tls_reality', '1');
-			so.rmempty = false;
 			so.modalonly = true;
 		}
 		/* TLS config end */
@@ -1150,7 +1172,7 @@ return view.extend({
 		o.default = o.disabled;
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.ListValue, 'auto_update_time', 'Update time');
+		o = s.taboption('subscription', form.ListValue, 'auto_update_time', _('Update time'));
 		for (var i = 0; i < 24; i++)
 			o.value(i, i + ':00');
 		o.default = '2';
@@ -1217,9 +1239,9 @@ return view.extend({
 		o.inputstyle = 'apply';
 		o.inputtitle = function(section_id) {
 			var sublist = uci.get(data[0], section_id, 'subscription_url') || [];
-			if (sublist.length > 0)
+			if (sublist.length > 0) {
 				return _('Update %s subscriptions').format(sublist.length);
-			else {
+			} else {
 				this.readonly = true;
 				return _('No subscription available')
 			}

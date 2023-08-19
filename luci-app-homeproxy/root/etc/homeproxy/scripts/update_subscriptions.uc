@@ -243,7 +243,8 @@ function parse_uri(uri) {
 			break;
 		case 'trojan':
 			/* https://p4gefau1t.github.io/trojan-go/developer/url/ */
-			const trojan_url = parseURL('http://' + uri[1]);
+			const trojan_url = parseURL('http://' + uri[1]),
+			      trojan_params = trojan_url.searchParams || {};
 
 			config = {
 				label: trojan_url.hash ? urldecode(trojan_url.hash) : null,
@@ -251,9 +252,26 @@ function parse_uri(uri) {
 				address: trojan_url.hostname,
 				port: trojan_url.port,
 				password: urldecode(trojan_url.username),
+				transport: (trojan_params.type !== 'tcp') ? trojan_params.type : null,
 				tls: '1',
-				tls_sni: trojan_url.searchParams ? trojan_url.searchParams.sni : null
+				tls_sni: trojan_params.sni
 			};
+			switch(trojan_params.type) {
+			case 'grpc':
+				config.grpc_servicename = trojan_params.serviceName;
+				break;
+			case 'ws':
+				/* We don't parse "host" param when TLS is enabled, as some providers are abusing it (host vs sni)
+				 * config.ws_host = trojan_params.host ? urldecode(trojan_params.host) : null;
+				 */
+				config.ws_path = trojan_params.path ? urldecode(trojan_params.path) : null;
+				if (config.ws_path && match(config.ws_path, /\?ed=/)) {
+					config.websocket_early_data_header = 'Sec-WebSocket-Protocol';
+					config.websocket_early_data = split(config.ws_path, '?ed=')[1];
+					config.ws_path = split(config.ws_path, '?ed=')[0];
+				}
+				break;
+			}
 
 			break;
 		case 'vless':
@@ -301,6 +319,7 @@ function parse_uri(uri) {
 				}
 				break;
 			case 'ws':
+				/* We don't parse "host" param when TLS is enabled, as some providers are abusing it (host vs sni) */
 				config.ws_host = (config.tls !== '1' && vless_params.host) ? urldecode(vless_params.host) : null;
 				config.ws_path = vless_params.path ? urldecode(vless_params.path) : null;
 				if (config.ws_path && match(config.ws_path, /\?ed=/)) {
@@ -376,6 +395,7 @@ function parse_uri(uri) {
 				}
 				break;
 			case 'ws':
+				/* We don't parse "host" param when TLS is enabled, as some providers are abusing it (host vs sni) */
 				config.ws_host = (config.tls !== '1') ? uri.host : null;
 				config.ws_path = uri.path;
 				if (config.ws_path && match(config.ws_path, /\?ed=/)) {
@@ -412,14 +432,14 @@ function main() {
 	}
 
 	for (let url in subscription_urls) {
+		const groupHash = calcStringMD5(url);
+		node_cache[groupHash] = {};
+
 		const res = wGET(url);
 		if (!res) {
 			log(sprintf('Failed to fetch resources from %s.', url));
 			continue;
 		}
-
-		const groupHash = calcStringMD5(url);
-		node_cache[groupHash] = {};
 
 		push(node_result, []);
 		const subindex = length(node_result) - 1;
@@ -485,7 +505,12 @@ function main() {
 
 	let added = 0, removed = 0;
 	uci.foreach(uciconfig, ucinode, (cfg) => {
+		/* Nodes created by the user */
 		if (!cfg.grouphash)
+			return null;
+
+		/* Empty object - failed to fetch nodes */
+		if (length(node_cache[cfg.grouphash]) === 0)
 			return null;
 
 		if (!node_cache[cfg.grouphash] || !node_cache[cfg.grouphash][cfg['.name']]) {
@@ -512,7 +537,7 @@ function main() {
 			added++;
 			log(sprintf('Adding node: %s.', node.label));
 		});
-	uci.commit();
+	uci.commit(uciconfig);
 
 	let need_restart = (via_proxy !== '1');
 	if (!isEmpty(main_node)) {
@@ -520,7 +545,7 @@ function main() {
 		if (first_server) {
 			if (!uci.get(uciconfig, main_node)) {
 				uci.set(uciconfig, ucimain, 'main_node', first_server);
-				uci.commit();
+				uci.commit(uciconfig);
 				need_restart = true;
 
 				log('Main node is gone, switching to the first node.');
@@ -529,7 +554,7 @@ function main() {
 			if (!isEmpty(main_udp_node) && main_udp_node !== 'same') {
 				if (!uci.get(uciconfig, main_udp_node)) {
 					uci.set(uciconfig, ucimain, 'main_udp_node', first_server);
-					uci.commit();
+					uci.commit(uciconfig);
 					need_restart = true;
 
 					log('Main UDP node is gone, switching to the first node.');
@@ -538,7 +563,7 @@ function main() {
 		} else {
 			uci.set(uciconfig, ucimain, 'main_node', 'nil');
 			uci.set(uciconfig, ucimain, 'main_udp_node', 'nil');
-			uci.commit();
+			uci.commit(uciconfig);
 			need_restart = true;
 
 			log('No available node, disable tproxy.');
