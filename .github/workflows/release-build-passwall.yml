@@ -43,6 +43,7 @@ jobs:
           token: ${{ secrets.workflow_token }}
           allowUpdates: true
           replacesArtifacts: true
+          removeArtifacts: true
           tag: "passwall-smartdns"
           body: |
             luci-app-passwall for OpemWrt.
