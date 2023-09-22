@@ -8,6 +8,7 @@ local has_fw3 = api.is_finded("fw3")
 local has_fw4 = api.is_finded("fw4")
 
 m = Map(appname)
+api.set_apply_on_parse(m)
 
 -- [[ Delay Settings ]]--
 s = m:section(TypedSection, "global_delay", translate("Delay Settings"))
@@ -147,7 +148,7 @@ if has_xray then
 	o.cfgvalue = function(self, section) return fs.readfile(domains_excluded) or "" end
 	o.write = function(self, section, value) fs.writefile(domains_excluded, value:gsub("\r\n", "\n")) end
 	o.remove = function(self, section)
-		local route_only_value = s_xray.fields["route_only"]:formvalue(section)
+		local route_only_value = s_xray.fields["route_only"] and s_xray.fields["route_only"]:formvalue(section) or nil
 		if not route_only_value or route_only_value == "0" then
 			fs.writefile(domains_excluded, "")
 		end
