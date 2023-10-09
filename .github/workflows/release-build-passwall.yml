@@ -44,7 +44,7 @@ jobs:
           allowUpdates: true
           replacesArtifacts: true
           removeArtifacts: true
-          tag: "passwall-smartdns"
+          tag: "${{ env.TAG_TIME }}"
           body: |
             luci-app-passwall for OpemWrt.
           artifacts: "bin/packages/${{ matrix.arch }}/packages_ci/*.ipk"
