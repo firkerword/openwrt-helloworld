@@ -50,7 +50,7 @@ jobs:
           artifacts: "bin/packages/${{ matrix.arch }}/packages_ci/*.ipk"
 
       - name: TG
-        run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人passwall-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +%Y年%m月%d日)%0A下载地址：https://github.com/firkerword/openwrt-helloworld/releases/tag/passwall-smartdns"
+        run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人passwall-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +%Y年%m月%d日)%0A下载地址：https://github.com/firkerword/openwrt-helloworld/releases"
 
       - name: Old workflow
         uses: FunctionXJB/delete-workflow-runs@main
