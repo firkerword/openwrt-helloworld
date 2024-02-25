@@ -6,6 +6,10 @@ local has_xray = api.finded_com("xray")
 local has_fw3 = api.is_finded("fw3")
 local has_fw4 = api.is_finded("fw4")
 
+local port_validate = function(self, value, t)
+	return value:gsub("-", ":")
+end
+
 m = Map(appname)
 api.set_apply_on_parse(m)
 
@@ -64,6 +68,7 @@ o = s:option(Value, "tcp_no_redir_ports", translate("TCP No Redir Ports"))
 o.default = "disable"
 o:value("disable", translate("No patterns are used"))
 o:value("1:65535", translate("All"))
+o.validate = port_validate
 
 ---- UDP No Redir Ports
 o = s:option(Value, "udp_no_redir_ports", translate("UDP No Redir Ports"),
@@ -73,17 +78,20 @@ o = s:option(Value, "udp_no_redir_ports", translate("UDP No Redir Ports"),
 o.default = "disable"
 o:value("disable", translate("No patterns are used"))
 o:value("1:65535", translate("All"))
+o.validate = port_validate
 
 ---- TCP Proxy Drop Ports
 o = s:option(Value, "tcp_proxy_drop_ports", translate("TCP Proxy Drop Ports"))
 o.default = "disable"
 o:value("disable", translate("No patterns are used"))
+o.validate = port_validate
 
 ---- UDP Proxy Drop Ports
 o = s:option(Value, "udp_proxy_drop_ports", translate("UDP Proxy Drop Ports"))
 o.default = "443"
 o:value("disable", translate("No patterns are used"))
 o:value("443", translate("QUIC"))
+o.validate = port_validate
 
 ---- TCP Redir Ports
 o = s:option(Value, "tcp_redir_ports", translate("TCP Redir Ports"))
@@ -91,12 +99,14 @@ o.default = "22,25,53,143,465,587,853,993,995,80,443"
 o:value("1:65535", translate("All"))
 o:value("22,25,53,143,465,587,853,993,995,80,443", translate("Common Use"))
 o:value("80,443", translate("Only Web"))
+o.validate = port_validate
 
 ---- UDP Redir Ports
 o = s:option(Value, "udp_redir_ports", translate("UDP Redir Ports"))
 o.default = "1:65535"
 o:value("1:65535", translate("All"))
 o:value("53", "DNS")
+o.validate = port_validate
 
 ---- Use nftables
 o = s:option(ListValue, "use_nft", translate("Firewall tools"))
@@ -146,6 +156,23 @@ if has_xray then
 	s_xray.anonymous = true
 	s_xray.addremove = false
 
+	o = s_xray:option(Flag, "fragment", translate("Fragment"), translate("TCP fragments, which can deceive the censorship system in some cases, such as bypassing SNI blacklists."))
+	o.default = 0
+	
+	o = s_xray:option(ListValue, "fragment_packets", translate("Fragment Packets"), translate(" \"1-3\" is for segmentation at TCP layer, applying to the beginning 1 to 3 data writes by the client. \"tlshello\" is for TLS client hello packet fragmentation."))
+	o.default = "tlshello"
+	o:value("1-3", "1-3")
+	o:value("tlshello", "tlshello")
+	o:depends("fragment", true)
+	
+	o = s_xray:option(Value, "fragment_length", translate("Fragment Length"), translate("Fragmented packet length (byte)"))
+	o.default = "10-20"
+	o:depends("fragment", true)
+	
+	o = s_xray:option(Value, "fragment_interval", translate("Fragment Interval"), translate("Fragmentation interval (ms)"))
+	o.default = "10-20"
+	o:depends("fragment", true)
+	
 	o = s_xray:option(Flag, "sniffing", translate("Sniffing"), translate("When using the shunt, must be enabled, otherwise the shunt will invalid."))
 	o.default = 1
 	o.rmempty = false
@@ -200,6 +227,20 @@ if has_singbox then
 	o.default = "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db"
 	o:value("https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db")
 	o.rmempty = false
+
+	o = s:option(Button, "_remove_resource", translate("Remove resource files"))
+	o.description = translate("Sing-Box will automatically download resource files when starting, you can use this feature achieve upgrade resource files.")
+	o.inputstyle = "remove"
+	function o.write(self, section, value)
+		local geoip_path = s.fields["geoip_path"] and s.fields["geoip_path"]:formvalue(section) or nil
+		if geoip_path then
+			os.remove(geoip_path)
+		end
+		local geosite_path = s.fields["geosite_path"] and s.fields["geosite_path"]:formvalue(section) or nil
+		if geosite_path then
+			os.remove(geosite_path)
+		end
+	end
 end
 
 return m

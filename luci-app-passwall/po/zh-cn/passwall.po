@@ -119,7 +119,13 @@ msgid "Domestic group name"
 msgstr "国内分组名"
 
 msgid "You only need to configure domestic DNS packets in SmartDNS and set it redirect or as Dnsmasq upstream, and fill in the domestic DNS group name here."
-msgstr "你只需要在SmartDNS配置好国内DNS分组，并设置重定向或作为Dnsmasq上游，此处填入国内DNS分组名。"
+msgstr "您只需要在SmartDNS配置好国内DNS分组，并设置重定向或作为Dnsmasq上游，此处填入国内DNS分组名。"
+
+msgid "Exclude Default Group"
+msgstr "从默认服务器组排除"
+
+msgid "Exclude DNS Server from default group."
+msgstr "从default默认服务器组中排除"
 
 msgid "Filter Mode"
 msgstr "过滤模式"
@@ -169,8 +175,11 @@ msgstr "此功能需要 DNS 服务器支持 EDNS Client Subnet（RFC7871）。"
 msgid "The effect is better, but will increase the memory."
 msgstr "效果更好，但会增加内存使用。"
 
-msgid "When using the chnroute list the default DNS"
-msgstr "当使用中国列表外时的默认DNS"
+msgid "Default DNS"
+msgstr "默认DNS"
+
+msgid "The default DNS used when not in the domain name rules list."
+msgstr "当域名不在规则列表中时使用的默认DNS。"
 
 msgid "Remote DNS can avoid more DNS leaks, but some domestic domain names maybe to proxy!"
 msgstr "远程DNS可以避免更多的DNS泄露，但会导致规则列表外的某些国内域名可能会走代理！"
@@ -256,6 +265,12 @@ msgstr "进程"
 msgid "1 Process"
 msgstr "单进程"
 
+msgid "Use %s"
+msgstr "使用 %s"
+
+msgid "Close(Not use)"
+msgstr "关闭（不使用）"
+
 msgid "Proxy Mode"
 msgstr "代理模式"
 
@@ -264,6 +279,9 @@ msgstr "默认代理模式"
 
 msgid "No Proxy"
 msgstr "不代理"
+
+msgid "Proxy"
+msgstr "代理"
 
 msgid "Global Proxy"
 msgstr "全局代理"
@@ -279,9 +297,6 @@ msgstr "游戏模式"
 
 msgid "China List"
 msgstr "中国列表"
-
-msgid "Only use direct/proxy list"
-msgstr "仅使用直连/代理列表"
 
 msgid "Localhost"
 msgstr "本机"
@@ -307,8 +322,11 @@ msgstr "添加节点"
 msgid "Add the node via the link"
 msgstr "通过链接添加节点"
 
-msgid "SS/SSR/Vmess/VLESS/Trojan/Hysteria Link"
-msgstr "SS/SSR/Vmess/VLESS/Trojan/Hysteria 链接"
+msgid "Share Link"
+msgstr "分享链接"
+
+msgid "Not a subscription link!!!"
+msgstr "不是订阅链接！！！"
 
 msgid "Please enter the correct link."
 msgstr "请输入正确的链接。"
@@ -523,6 +541,12 @@ msgstr "认证密码"
 msgid "Commands the client to use the BBR flow control algorithm"
 msgstr "命令客户端使用 BBR 流量控制算法"
 
+msgid "PinSHA256"
+msgstr "PinSHA256"
+
+msgid "Certificate fingerprint"
+msgstr "证书指纹"
+
 msgid "Max upload Mbps"
 msgstr "最大上行(Mbps)"
 
@@ -553,26 +577,17 @@ msgstr "加密"
 msgid "Latency"
 msgstr "延迟"
 
-msgid "Show Add Mode"
-msgstr "显示添加方式"
-
-msgid "Show Group"
-msgstr "显示组"
-
-msgid "Group"
-msgstr "组"
-
-msgid "Auto Ping"
-msgstr "自动Ping"
-
-msgid "Concise display nodes"
-msgstr "简洁显示节点"
+msgid "Automatic detection delay"
+msgstr "自动检测延迟"
 
 msgid "Show server address and port"
 msgstr "显示服务器地址和端口"
 
-msgid "Availability test"
-msgstr "可用性测试"
+msgid "URL Test"
+msgstr "URL 测试"
+
+msgid "Test"
+msgstr "测试"
 
 msgid "Node num"
 msgstr "节点数量"
@@ -754,8 +769,8 @@ msgstr "内置实现"
 msgid "Health Check Inter"
 msgstr "健康检查节点间隔时间"
 
-msgid "When the availability test is used, the load balancing node will be converted into a Socks node. when node list set customizing, must be a Socks node, otherwise the health check will be invalid."
-msgstr "当使用可用性测试时，负载均衡节点将转换成Socks节点。下面的节点列表自定义时必须为Socks节点，否则健康检查将无效。"
+msgid "When the URL test is used, the load balancing node will be converted into a Socks node. when node list set customizing, must be a Socks node, otherwise the health check will be invalid."
+msgstr "当使用URL测试时，负载均衡节点将转换成Socks节点。下面的节点列表自定义时必须为Socks节点，否则健康检查将无效。"
 
 msgid "Add a node, Export Of Multi WAN Only support Multi Wan. Load specific gravity range 1-256. Multiple primary servers can be load balanced, standby will only be enabled when the primary server is offline! Multiple groups can be set, Haproxy port same one for each group."
 msgstr "添加节点，指定出口功能是为多WAN用户准备的。负载比重范围1-256。多个主服务器可以负载均衡，备用只有在主服务器离线时才会启用！可以设置多个组，负载均衡端口相同则为一组。"
@@ -901,9 +916,6 @@ msgstr "%s 程序路径"
 msgid "%s Client App Path"
 msgstr "%s 客户端程序路径"
 
-msgid "Trojan-Go Version API"
-msgstr "Trojan-Go 版本 API"
-
 msgid "alternate API URL for version checking"
 msgstr "用于版本检查的 API URL"
 
@@ -1021,6 +1033,12 @@ msgstr "配置路由etc/hosts文件，如果你不知道自己在做什么，请
 msgid "These had been joined ip addresses will be block. Please input the ip address or ip address segment, every line can input only one ip address."
 msgstr "加入的IP段将屏蔽。可输入IP地址或地址段，每个地址段一行。"
 
+msgid "Inbound Tag"
+msgstr "入站标签"
+
+msgid "Transparent proxy"
+msgstr "透明代理"
+
 msgid "Not valid domain name, please re-enter!"
 msgstr "不是有效域名，请重新输入！"
 
@@ -1081,9 +1099,6 @@ msgstr "IV 检查"
 msgid "UDP over TCP"
 msgstr "TCP 封装 UDP"
 
-msgid "Need Xray-core or sing-box as server side."
-msgstr "需要 Xray-core 或者 sing-box 作为服务器端。"
-
 msgid "Connection Timeout"
 msgstr "连接超时时间"
 
@@ -1119,12 +1134,6 @@ msgstr "插件名称"
 
 msgid "Plugin Arguments"
 msgstr "插件参数"
-
-msgid "Brook Protocol"
-msgstr "Brook协议"
-
-msgid "Use TLS"
-msgstr "使用TLS"
 
 msgid "Naiveproxy Protocol"
 msgstr "Naiveproxy协议"
@@ -1177,11 +1186,8 @@ msgstr "允许不安全连接"
 msgid "Whether unsafe connections are allowed. When checked, Certificate validation will be skipped."
 msgstr "是否允许不安全连接。当勾选时，将跳过证书验证。"
 
-msgid "SS AEAD Node Use Type"
-msgstr "SS AEAD节点使用类型"
-
-msgid "Trojan Node Use Type"
-msgstr "Trojan节点使用类型"
+msgid "%s Node Use Type"
+msgstr "%s 节点使用类型"
 
 msgid "Set the TUIC proxy server ip address"
 msgstr "指定远程TUIC服务器IP"
@@ -1513,6 +1519,12 @@ msgstr "自定义geosite文件路径"
 msgid "Custom geosite URL"
 msgstr "自定义geosite文件更新链接"
 
+msgid "Remove resource files"
+msgstr "删除资源文件"
+
+msgid "Sing-Box will automatically download resource files when starting, you can use this feature achieve upgrade resource files."
+msgstr "Sing-Box 会在启动时自动下载资源文件，您可以使用此功能实现升级资源文件。"
+
 msgid "Override the connection destination address"
 msgstr "覆盖连接目标地址"
 
@@ -1542,3 +1554,30 @@ msgstr "后量子对等证书签名方案"
 
 msgid "Disable adaptive sizing of TLS records"
 msgstr "禁用 TLS 记录的自适应大小调整"
+
+msgid "Enable Multipath TCP, need to be enabled in both server and client configuration."
+msgstr "启用 Multipath TCP，需在服务端和客户端配置中同时启用。"
+
+msgid "Fragment"
+msgstr "分片"
+
+msgid "TCP fragments, which can deceive the censorship system in some cases, such as bypassing SNI blacklists."
+msgstr "TCP 分片，在某些情况下可以欺骗审查系统，比如绕过 SNI 黑名单。"
+
+msgid "Fragment Packets"
+msgstr "分片方式"
+
+msgid " \"1-3\" is for segmentation at TCP layer, applying to the beginning 1 to 3 data writes by the client. \"tlshello\" is for TLS client hello packet fragmentation."
+msgstr " \"1-3\" 是 TCP 的流切片，应用于客户端第 1 至第 3 次写数据。\"tlshello\" 是 TLS 握手包切片。"
+
+msgid "Fragment Length"
+msgstr "分片包长"
+
+msgid "Fragmented packet length (byte)"
+msgstr "分片包长 (byte)"
+
+msgid "Fragment Interval"
+msgstr "分片间隔"
+
+msgid "Fragmentation interval (ms)"
+msgstr "分片间隔（ms）"

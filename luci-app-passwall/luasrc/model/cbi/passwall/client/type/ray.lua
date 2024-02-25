@@ -41,7 +41,7 @@ o:value("trojan", translate("Trojan"))
 o:value("wireguard", translate("WireGuard"))
 o:value("_balancing", translate("Balancing"))
 o:value("_shunt", translate("Shunt"))
-o:value("_iface", translate("Custom Interface") .. " (Only Support Xray)")
+o:value("_iface", translate("Custom Interface"))
 
 o = s:option(Value, option_name("iface"), translate("Interface"))
 o.default = "eth1"
@@ -237,10 +237,8 @@ o:depends({ [option_name("protocol")] = "shadowsocks", [option_name("x_ss_encryp
 o:depends({ [option_name("protocol")] = "shadowsocks", [option_name("x_ss_encrypt_method")] = "chacha20-poly1305" })
 o:depends({ [option_name("protocol")] = "shadowsocks", [option_name("x_ss_encrypt_method")] = "xchacha20-poly1305" })
 
-o = s:option(Flag, option_name("uot"), translate("UDP over TCP"), translate("Need Xray-core or sing-box as server side."))
-o:depends({ [option_name("protocol")] = "shadowsocks", [option_name("x_ss_encrypt_method")] = "2022-blake3-aes-128-gcm" })
-o:depends({ [option_name("protocol")] = "shadowsocks", [option_name("x_ss_encrypt_method")] = "2022-blake3-aes-256-gcm" })
-o:depends({ [option_name("protocol")] = "shadowsocks", [option_name("x_ss_encrypt_method")] = "2022-blake3-chacha20-poly1305" })
+o = s:option(Flag, option_name("uot"), translate("UDP over TCP"))
+o:depends({ [option_name("protocol")] = "shadowsocks" })
 
 o = s:option(Value, option_name("uuid"), translate("ID"))
 o.password = true
@@ -257,6 +255,7 @@ o = s:option(Flag, option_name("tls"), translate("TLS"))
 o.default = 0
 o:depends({ [option_name("protocol")] = "vmess" })
 o:depends({ [option_name("protocol")] = "vless" })
+o:depends({ [option_name("protocol")] = "http" })
 o:depends({ [option_name("protocol")] = "socks" })
 o:depends({ [option_name("protocol")] = "trojan" })
 o:depends({ [option_name("protocol")] = "shadowsocks" })
@@ -515,5 +514,12 @@ o:depends({ [option_name("protocol")] = "vless", [option_name("flow")] = "xtls-r
 o = s:option(Value, option_name("xudp_concurrency"), translate("XUDP Mux concurrency"))
 o.default = 8
 o:depends({ [option_name("xmux")] = true })
+
+--[[tcpMptcp]]
+o = s:option(Flag, option_name("tcpMptcp"), "tcpMptcp", translate("Enable Multipath TCP, need to be enabled in both server and client configuration."))
+o.default = 0
+
+o = s:option(Flag, option_name("tcpNoDelay"), "tcpNoDelay")
+o.default = 0
 
 api.luci_types(arg[1], m, s, type_name, option_prefix)

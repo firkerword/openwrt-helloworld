@@ -126,9 +126,12 @@ return view.extend({
 		/* Cache all configured proxy nodes, they will be called multiple times */
 		var proxy_nodes = {};
 		uci.sections(data[0], 'node', (res) => {
+			var nodeaddr = ((res.type === 'direct') ? res.override_address : res.address) || '',
+			    nodeport = ((res.type === 'direct') ? res.override_port : res.port) || '';
+
 			proxy_nodes[res['.name']] =
-				String.format('[%s] %s', res.type, res.label || (stubValidator.apply('ip6addr', res.address || '') ?
-					String.format('[%s]', res.address) : res.address) + ':' + res.port);
+				String.format('[%s] %s', res.type, res.label || ((stubValidator.apply('ip6addr', nodeaddr) ?
+					String.format('[%s]', nodeaddr) : nodeaddr) + ':' + nodeport));
 		});
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
@@ -261,14 +264,18 @@ return view.extend({
 		o.depends('routing_mode', 'custom');
 
 		ss = o.subsection;
+		so = ss.option(form.Flag, 'tun_gso', _('Generic segmentation offload'));
+		so.default = so.disabled;
+		so.depends('homeproxy.config.proxy_mode', 'redirect_tun');
+		so.depends('homeproxy.config.proxy_mode', 'tun');
+		so.rmempty = false;
+
 		so = ss.option(form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
 			_('TCP/IP stack.'));
 		if (features.with_gvisor) {
 			so.value('mixed', _('Mixed'));
 			so.value('gvisor', _('gVisor'));
 		}
-		if (features.with_lwip)
-			so.value('lwip', _('LWIP'));
 		so.value('system', _('System'));
 		so.default = 'system';
 		so.depends('homeproxy.config.proxy_mode', 'redirect_tun');
@@ -280,8 +287,6 @@ return view.extend({
 				desc.innerHTML = _('Mixed <code>system</code> TCP stack and <code>gVisor</code> UDP stack.')
 			else if (value === 'gvisor')
 				desc.innerHTML = _('Based on google/gvisor.');
-			else if (value === 'lwip')
-				desc.innerHTML = _('Upstream archived. Not recommended.');
 			else if (value === 'system')
 				desc.innerHTML = _('Less compatibility and sometimes better performance.');
 		}
@@ -421,6 +426,18 @@ return view.extend({
 		so.rmempty = false;
 		so.editable = true;
 
+		so = ss.option(form.ListValue, 'mode', _('Mode'),
+			_('The default rule uses the following matching logic:<br/>' +
+			'<code>(domain || domain_suffix || domain_keyword || domain_regex || ip_cidr || ip_is_private)</code> &&<br/>' +
+			'<code>(port || port_range)</code> &&<br/>' +
+			'<code>(source_ip_cidr || source_ip_is_private)</code> &&<br/>' +
+			'<code>(source_port || source_port_range)</code> &&<br/>' +
+			'<code>other fields</code>.'));
+		so.value('default', _('Default'));
+		so.default = 'default';
+		so.rmempty = false;
+		so.readonly = true;
+
 		so = ss.option(form.ListValue, 'ip_version', _('IP version'),
 			_('4 or 6. Not limited if empty.'));
 		so.value('4', _('IPv4'));
@@ -428,32 +445,17 @@ return view.extend({
 		so.value('', _('Both'));
 		so.modalonly = true;
 
-		so = ss.option(form.ListValue, 'mode', _('Mode'),
-			_('The default rule uses the following matching logic:<br/>' +
-			'<code>(domain || domain_suffix || domain_keyword || domain_regex || geosite || geoip || ip_cidr)</code> &&<br/>' +
-			'<code>(source_geoip || source_ip_cidr)</code> &&<br/>' +
-			'<code>other fields</code>.'));
-		so.value('default', _('Default'));
-		so.default = 'default';
-		so.rmempty = false;
-		so.readonly = true;
-
-		so = ss.option(form.Flag, 'invert', _('Invert'),
-			_('Invert match result.'));
-		so.default = so.disabled;
-		so.modalonly = true;
-
-		so = ss.option(form.ListValue, 'network', _('Network'));
-		so.value('tcp', _('TCP'));
-		so.value('udp', _('UDP'));
-		so.value('', _('Both'));
-
 		so = ss.option(form.MultiValue, 'protocol', _('Protocol'),
 			_('Sniffed protocol, see <a target="_blank" href="https://sing-box.sagernet.org/configuration/route/sniff/">Sniff</a> for details.'));
 		so.value('http', _('HTTP'));
 		so.value('tls', _('TLS'));
 		so.value('quic', _('QUIC'));
 		so.value('stun', _('STUN'));
+
+		so = ss.option(form.ListValue, 'network', _('Network'));
+		so.value('tcp', _('TCP'));
+		so.value('udp', _('UDP'));
+		so.value('', _('Both'));
 
 		so = ss.option(form.DynamicList, 'domain', _('Domain name'),
 			_('Match full domain.'));
@@ -472,26 +474,26 @@ return view.extend({
 			_('Match domain using regular expression.'));
 		so.modalonly = true;
 
-		so = ss.option(form.DynamicList, 'geosite', _('Geosite'),
-			_('Match geosite.'));
-		so.modalonly = true;
-
-		so = ss.option(form.DynamicList, 'source_geoip', _('Source GeoIP'),
-			_('Match source GeoIP.'));
-		so.modalonly = true;
-
-		so = ss.option(form.DynamicList, 'geoip', _('GeoIP'),
-			_('Match GeoIP.'));
-		so.modalonly = true;
-
 		so = ss.option(form.DynamicList, 'source_ip_cidr', _('Source IP CIDR'),
 			_('Match source IP CIDR.'));
 		so.datatype = 'or(cidr, ipaddr)';
 		so.modalonly = true;
 
+		so = ss.option(form.Flag, 'source_ip_is_private', _('Private source IP'),
+			_('Match private source IP.'));
+		so.default = so.disabled;
+		so.rmempty = false;
+		so.modalonly = true;
+
 		so = ss.option(form.DynamicList, 'ip_cidr', _('IP CIDR'),
 			_('Match IP CIDR.'));
 		so.datatype = 'or(cidr, ipaddr)';
+		so.modalonly = true;
+
+		so = ss.option(form.Flag, 'ip_is_private', _('Private IP'),
+			_('Match private IP.'));
+		so.default = so.disabled;
+		so.rmempty = false;
 		so.modalonly = true;
 
 		so = ss.option(form.DynamicList, 'source_port', _('Source port'),
@@ -524,6 +526,33 @@ return view.extend({
 
 		so = ss.option(form.DynamicList, 'user', _('User'),
 			_('Match user name.'));
+		so.modalonly = true;
+
+		so = ss.option(form.MultiValue, 'rule_set', _('Rule set'),
+			_('Match rule set.'));
+		so.load = function(section_id) {
+			delete this.keylist;
+			delete this.vallist;
+
+			this.value('', _('-- Please choose --'));
+			uci.sections(data[0], 'ruleset', (res) => {
+				if (res.enabled === '1')
+					this.value(res['.name'], res.label);
+			});
+
+			return this.super('load', section_id);
+		}
+		so.modalonly = true;
+
+		so = ss.option(form.Flag, 'rule_set_ipcidr_match_source', _('Match source IP via rule set'),
+			_('Make IP CIDR in rule set used to match the source IP.'));
+		so.default = so.disabled;
+		so.rmempty = false;
+		so.modalonly = true;
+
+		so = ss.option(form.Flag, 'invert', _('Invert'),
+			_('Invert match result.'));
+		so.default = so.disabled;
 		so.modalonly = true;
 
 		so = ss.option(form.ListValue, 'outbound', _('Outbound'),
@@ -578,6 +607,11 @@ return view.extend({
 		so.default = so.disabled;
 
 		so = ss.option(form.Flag, 'disable_cache_expire', _('Disable cache expire'));
+		so.default = so.disabled;
+		so.depends('disable_cache', '0');
+
+		so = ss.option(form.Flag, 'independent_cache', _('Independent cache per server'),
+			_('Make each DNS server\'s cache independent for special purposes. If enabled, will slightly degrade performance.'));
 		so.default = so.disabled;
 		so.depends('disable_cache', '0');
 		/* DNS settings end */
@@ -698,15 +732,25 @@ return view.extend({
 
 		so = ss.option(form.ListValue, 'mode', _('Mode'),
 			_('The default rule uses the following matching logic:<br/>' +
-			'<code>(domain || domain_suffix || domain_keyword || domain_regex || geosite)</code> &&<br/>' +
+			'<code>(domain || domain_suffix || domain_keyword || domain_regex)</code> &&<br/>' +
 			'<code>(port || port_range)</code> &&<br/>' +
-			'<code>(source_geoip || source_ip_cidr)</code> &&<br/>' +
+			'<code>(source_ip_cidr || source_ip_is_private)</code> &&<br/>' +
 			'<code>(source_port || source_port_range)</code> &&<br/>' +
 			'<code>other fields</code>.'));
 		so.value('default', _('Default'));
 		so.default = 'default';
 		so.rmempty = false;
 		so.readonly = true;
+
+		so = ss.option(form.ListValue, 'ip_version', _('IP version'));
+		so.value('4', _('IPv4'));
+		so.value('6', _('IPv6'));
+		so.value('', _('Both'));
+		so.modalonly = true;
+
+		so = ss.option(form.DynamicList, 'query_type', _('Query type'),
+			_('Match query type.'));
+		so.modalonly = true;
 
 		so = ss.option(form.ListValue, 'network', _('Network'));
 		so.value('tcp', _('TCP'));
@@ -738,10 +782,6 @@ return view.extend({
 			_('Match domain using regular expression.'));
 		so.modalonly = true;
 
-		so = ss.option(form.DynamicList, 'geosite', _('Geosite'),
-			_('Match geosite.'));
-		so.modalonly = true;
-
 		so = ss.option(form.DynamicList, 'port', _('Port'),
 			_('Match port.'));
 		so.datatype = 'port';
@@ -752,13 +792,15 @@ return view.extend({
 		so.validate = validatePortRange;
 		so.modalonly = true;
 
-		so = ss.option(form.DynamicList, 'source_geoip', _('Source GeoIP'),
-			_('Match source GeoIP.'));
-		so.modalonly = true;
-
 		so = ss.option(form.DynamicList, 'source_ip_cidr', _('Source IP CIDR'),
 			_('Match source IP CIDR.'));
 		so.datatype = 'or(cidr, ipaddr)';
+		so.modalonly = true;
+
+		so = ss.option(form.Flag, 'source_ip_is_private', _('Private source IP'),
+			_('Match private source IP.'));
+		so.default = so.disabled;
+		so.rmempty = false;
 		so.modalonly = true;
 
 		so = ss.option(form.DynamicList, 'source_port', _('Source port'),
@@ -781,6 +823,22 @@ return view.extend({
 
 		so = ss.option(form.DynamicList, 'user', _('User'),
 			_('Match user name.'));
+		so.modalonly = true;
+
+		so = ss.option(form.MultiValue, 'rule_set', _('Rule set'),
+			_('Match rule set.'));
+		so.load = function(section_id) {
+			delete this.keylist;
+			delete this.vallist;
+
+			this.value('', _('-- Please choose --'));
+			uci.sections(data[0], 'ruleset', (res) => {
+				if (res.enabled === '1')
+					this.value(res['.name'], res.label);
+			});
+
+			return this.super('load', section_id);
+		}
 		so.modalonly = true;
 
 		so = ss.option(form.Flag, 'invert', _('Invert'),
@@ -829,8 +887,101 @@ return view.extend({
 			_('Disable cache and save cache in this query.'));
 		so.default = so.disabled;
 		so.modalonly = true;
+
+		so = ss.option(form.Value, 'rewrite_ttl', _('Rewrite TTL'),
+			_('Rewrite TTL in DNS responses.'));
+		so.datatype = 'uinteger';
+		so.modalonly = true;
 		/* DNS rules end */
 		/* Custom routing settings end */
+
+		/* Rule set settings start */
+		s.tab('ruleset', _('Rule set'));
+		o = s.taboption('ruleset', form.SectionValue, '_ruleset', form.GridSection, 'ruleset');
+		o.depends('routing_mode', 'custom');
+
+		ss = o.subsection;
+		ss.addremove = true;
+		ss.rowcolors = true;
+		ss.sortable = true;
+		ss.nodescriptions = true;
+		ss.modaltitle = L.bind(hp.loadModalTitle, this, _('Rule set'), _('Add a rule set'), data[0]);
+		ss.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
+		ss.renderSectionAdd = L.bind(hp.renderSectionAdd, this, ss);
+
+		so = ss.option(form.Value, 'label', _('Label'));
+		so.load = L.bind(hp.loadDefaultLabel, this, data[0]);
+		so.validate = L.bind(hp.validateUniqueValue, this, data[0], 'ruleset', 'label');
+		so.modalonly = true;
+
+		so = ss.option(form.Flag, 'enabled', _('Enable'));
+		so.default = o.enabled;
+		so.rmempty = false;
+		so.editable = true;
+
+		so = ss.option(form.ListValue, 'type', _('Type'));
+		so.value('local', _('Local'));
+		so.value('remote', _('Remote'));
+		so.default = 'remote';
+		so.rmempty = false;
+
+		so = ss.option(form.ListValue, 'format', _('Format'));
+		so.value('source', _('Source file'));
+		so.value('binary', _('Binary file'));
+		so.default = 'source';
+		so.rmempty = false;
+
+		so = ss.option(form.Value, 'path', _('Path'));
+		so.datatype = 'file';
+		so.placeholder = '/etc/homeproxy/ruleset/example.json';
+		so.rmempty = false;
+		so.depends('type', 'local');
+		so.modalonly = true;
+
+		so = ss.option(form.Value, 'url', _('Rule set URL'));
+		so.validate = function(section_id, value) {
+			if (section_id) {
+				if (!value)
+					return _('Expecting: %s').format(_('non-empty value'));
+
+				try {
+					var url = new URL(value);
+					if (!url.hostname)
+						return _('Expecting: %s').format(_('valid URL'));
+				}
+				catch(e) {
+					return _('Expecting: %s').format(_('valid URL'));
+				}
+			}
+
+			return true;
+		}
+		so.rmempty = false;
+		so.depends('type', 'remote');
+		so.modalonly = true;
+
+		so = ss.option(form.ListValue, 'outbound', _('Outbound'),
+			_('Tag of the outbound to download rule set.'));
+		so.load = function(section_id) {
+			delete this.keylist;
+			delete this.vallist;
+
+			this.value('direct-out', _('Direct'));
+			uci.sections(data[0], 'routing_node', (res) => {
+				if (res.enabled === '1')
+					this.value(res['.name'], res.label);
+			});
+
+			return this.super('load', section_id);
+		}
+		so.default = 'direct-out';
+		so.rmempty = false;
+		so.depends('type', 'remote');
+
+		so = ss.option(form.Value, 'update_interval', _('Update interval'),
+			_('Update interval of rule set.<br/><code>1d</code> will be used if empty.'));
+		so.depends('type', 'remote');
+		/* Rule set settings end */
 
 		/* ACL settings start */
 		s.tab('control', _('Access Control'));

@@ -232,7 +232,7 @@ function connect_status()
 	local e = {}
 	e.use_time = ""
 	local url = luci.http.formvalue("url")
-	local result = luci.sys.exec('curl --connect-timeout 3 -o /dev/null -I -sk -w "%{http_code}:%{time_starttransfer}" ' .. url)
+	local result = luci.sys.exec('curl --connect-timeout 3 -o /dev/null -I -sk -w "%{http_code}:%{time_appconnect}" ' .. url)
 	local code = tonumber(luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $1}'") or "0")
 	if code ~= 0 then
 		local use_time = luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $2}'")
@@ -251,16 +251,15 @@ function ping_node()
 	local index = luci.http.formvalue("index")
 	local address = luci.http.formvalue("address")
 	local port = luci.http.formvalue("port")
+	local type = luci.http.formvalue("type") or "icmp"
 	local e = {}
 	e.index = index
-	local nodes_ping = ucic:get(appname, "@global_other[0]", "nodes_ping") or ""
-	if nodes_ping:find("tcping") and luci.sys.exec("echo -n $(command -v tcping)") ~= "" then
+	if type == "tcping" and luci.sys.exec("echo -n $(command -v tcping)") ~= "" then
 		if api.is_ipv6(address) then
 			address = api.get_ipv6_only(address)
 		end
 		e.ping = luci.sys.exec(string.format("echo -n $(tcping -q -c 1 -i 1 -t 2 -p %s %s 2>&1 | grep -o 'time=[0-9]*' | awk -F '=' '{print $2}') 2>/dev/null", port, address))
-	end
-	if e.ping == nil or tonumber(e.ping) == 0 then
+	else
 		e.ping = luci.sys.exec("echo -n $(ping -c 1 -W 1 %q 2>&1 | grep -o 'time=[0-9]*' | awk -F '=' '{print $2}') 2>/dev/null" % address)
 	end
 	luci.http.prepare_content("application/json")
