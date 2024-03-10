@@ -6,7 +6,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-passwall
-PKG_VERSION:=4.75-3
+PKG_VERSION:=4.75-8
 PKG_RELEASE:=
 
 
