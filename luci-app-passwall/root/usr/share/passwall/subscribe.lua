@@ -550,10 +550,12 @@ local function processData(szType, content, add_mode, add_from)
 				result.protocol = 'shadowsocks'
 			end
 
-			if result.type == "SS-Rust" or result.type == "Xray" then
-				if method:lower() == "chacha20-ietf-poly1305" then
-					result.method = "chacha20-poly1305"
-				end
+			if result.type == "SS-Rust" and method:lower() == "chacha20-poly1305" then
+				result.method = "chacha20-ietf-poly1305"
+			end
+
+			if result.type == "Xray" and method:lower() == "chacha20-ietf-poly1305" then
+				result.method = "chacha20-poly1305"
 			end
 
 			if result.plugin then
@@ -896,13 +898,11 @@ local function processData(szType, content, add_mode, add_from)
 end
 
 local function curl(url, file, ua)
-	if not ua or ua == "" then
-		ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"
+	local curl_args = api.clone(api.curl_args)
+	if ua and ua ~= "" and ua ~= "curl" then
+		table.insert(curl_args, '--user-agent "' .. ua .. '"')
 	end
-	local args = {
-		"-skL", "--retry 3", "--connect-timeout 3", '--user-agent "' .. ua .. '"'
-	}
-	local return_code, result = api.curl_logic(url, file, args)
+	local return_code, result = api.curl_logic(url, file, curl_args)
 	return return_code
 end
 
