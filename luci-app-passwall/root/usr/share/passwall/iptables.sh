@@ -135,7 +135,9 @@ REDIRECT() {
 get_jump_ipt() {
 	case "$1" in
 	direct)
-		echo "-j RETURN"
+		local mark="-m mark ! --mark 1"
+		s="${mark} -j RETURN"
+		echo $s
 		;;
 	proxy)
 		if [ -n "$2" ] && [ -n "$(echo $2 | grep "^-")" ]; then
@@ -218,6 +220,11 @@ load_acl() {
 			[ "${use_global_config}" = "1" ] && {
 				tcp_node_remark=$(config_n_get $TCP_NODE remarks)
 				udp_node_remark=$(config_n_get $UDP_NODE remarks)
+				use_direct_list=${USE_DIRECT_LIST}
+				use_proxy_list=${USE_PROXY_LIST}
+				use_block_list=${USE_BLOCK_LIST}
+				use_gfw_list=${USE_GFW_LIST}
+				chn_list=${CHN_LIST}
 			}
 
 			for i in $(cat ${TMP_ACL_PATH}/${sid}/rule_list); do
@@ -1165,14 +1172,19 @@ del_firewall_rule() {
 	destroy_ipset $IPSET_BLOCKLIST6
 	destroy_ipset $IPSET_WHITELIST6
 
-	$DIR/app.sh echolog "删除相关防火墙规则完成。"
+	$DIR/app.sh echolog "删除iptables防火墙规则完成。"
 }
 
 flush_ipset() {
-	del_firewall_rule
+	$DIR/app.sh echolog "清空 IPSET。"
 	for _name in $(ipset list | grep "Name: " | grep "passwall_" | awk '{print $2}'); do
 		destroy_ipset ${_name}
 	done
+}
+
+flush_ipset_reload() {
+	del_firewall_rule
+	flush_ipset
 	rm -rf /tmp/singbox_passwall*
 	rm -rf /tmp/etc/passwall_tmp/smartdns*
 	rm -rf /tmp/etc/passwall_tmp/dnsmasq*
@@ -1296,6 +1308,9 @@ insert_rule_after)
 	;;
 flush_ipset)
 	flush_ipset
+	;;
+flush_ipset_reload)
+	flush_ipset_reload
 	;;
 get_ipt_bin)
 	get_ipt_bin
