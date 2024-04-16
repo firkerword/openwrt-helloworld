@@ -52,9 +52,10 @@ jobs:
       - name: TG
         run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人passwall-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +%Y年%m月%d日)%0A下载地址：https://github.com/firkerword/openwrt-helloworld/releases"
 
-      - name: Old workflow
-        uses: FunctionXJB/delete-workflow-runs@main
+      - name: 清理旧的workflow
+        uses: Mattraks/delete-workflow-runs@v2
         with:
+          token: ${{ secrets.RELEASE_TOKEN }}
           retain_days: 180
           keep_minimum_runs: 10
 
