@@ -257,15 +257,17 @@ if has_singbox or has_xray then
 	tcp_node_http_port.datatype = "port"
 end
 ]]--
-
+tcp_node_socks_bind_local = s:taboption("Main", Flag, "tcp_node_socks_bind_local", translate("TCP Node") .. " Socks " .. translate("Bind Local"), translate("When selected, it can only be accessed localhost."))
+tcp_node_socks_bind_local.default = "1"
+tcp_node_socks_bind_local:depends({ tcp_node = "nil", ["!reverse"] = true })
 
 s:tab("DNS", translate("DNS"))
 
+dns_shunt = s:taboption("DNS", ListValue, "dns_shunt", "DNS " .. translate("Shunt"))
+dns_shunt:value("dnsmasq", "Dnsmasq")
+dns_shunt:value("chinadns-ng", "Dnsmasq + ChinaDNS-NG")
 if api.is_finded("smartdns") then
-	dns_shunt = s:taboption("DNS", ListValue, "dns_shunt", translate("DNS Shunt"))
-	dns_shunt:value("dnsmasq", "Dnsmasq")
 	dns_shunt:value("smartdns", "SmartDNS")
-
 	group_domestic = s:taboption("DNS", Value, "group_domestic", translate("Domestic group name"))
 	group_domestic.placeholder = "local"
 	group_domestic:depends("dns_shunt", "smartdns")
@@ -325,8 +327,8 @@ end
 
 ---- DNS Forward Mode
 dns_mode = s:taboption("DNS", ListValue, "dns_mode", translate("Filter Mode"))
-dns_mode:value("tcp", translatef("Requery DNS By %s", "TCP"))
 dns_mode:value("udp", translatef("Requery DNS By %s", "UDP"))
+dns_mode:value("tcp", translatef("Requery DNS By %s", "TCP"))
 if api.is_finded("dns2socks") then
 	dns_mode:value("dns2socks", "dns2socks")
 end
@@ -337,7 +339,7 @@ if has_xray then
 	dns_mode:value("xray", "Xray")
 end
 if api.is_finded("smartdns") then
-	dns_mode:depends("dns_shunt", "dnsmasq")
+	dns_mode:depends({ dns_shunt = "smartdns",  ['!reverse'] = true })
 end
 
 o = s:taboption("DNS", ListValue, "xray_dns_mode", translate("Request protocol"))
@@ -419,7 +421,7 @@ o:depends({dns_mode = "xray"})
 
 o = s:taboption("DNS", Flag, "remote_fakedns", "FakeDNS", translate("Use FakeDNS work in the shunt domain that proxy."))
 o.default = "0"
-o:depends({dns_mode = "sing-box"})
+o:depends({dns_mode = "sing-box", dns_shunt = "dnsmasq"})
 o.validate = function(self, value, t)
 	if value and value == "1" then
 		local _dns_mode = dns_mode:formvalue(t)
@@ -433,28 +435,18 @@ o.validate = function(self, value, t)
 	return value
 end
 
-if api.is_finded("chinadns-ng") then
-	o = s:taboption("DNS", Flag, "chinadns_ng", translate("ChinaDNS-NG"), translate("The effect is better, recommend."))
-	o.default = "0"
-	local _depends = {remote_fakedns = false}
-	if api.is_finded("smartdns") then
-		_depends["dns_shunt"] = "dnsmasq"
-	end
-	o:depends(_depends)
-
-	o = s:taboption("DNS", ListValue, "chinadns_ng_default_tag", translate("ChinaDNS-NG Domain Default Tag"))
-	o.default = "none"
-	o:value("none", translate("Default"))
-	o:value("gfw", translate("Remote DNS"))
-	o:value("chn", translate("Direct DNS"))
-	o.description = "<ul>"
-			.. "<li>" .. translate("When not matching any domain name list:") .. "</li>"
-			.. "<li>" .. translate("Default: Forward to both direct and remote DNS, if the direct DNS resolution result is a mainland China ip, then use the direct result, otherwise use the remote result.") .. "</li>"
-			.. "<li>" .. translate("Remote DNS: Can avoid more DNS leaks, but some domestic domain names maybe to proxy!") .. "</li>"
-			.. "<li>" .. translate("Direct DNS: Internet experience may be better, but DNS will be leaked!") .. "</li>"
-			.. "</ul>"
-	o:depends({chinadns_ng = true, chn_list = "direct"})
-end
+o = s:taboption("DNS", ListValue, "chinadns_ng_default_tag", translate("ChinaDNS-NG Domain Default Tag"))
+o.default = "none"
+o:value("none", translate("Default"))
+o:value("gfw", translate("Remote DNS"))
+o:value("chn", translate("Direct DNS"))
+o.description = "<ul>"
+		.. "<li>" .. translate("When not matching any domain name list:") .. "</li>"
+		.. "<li>" .. translate("Default: Forward to both direct and remote DNS, if the direct DNS resolution result is a mainland China ip, then use the direct result, otherwise use the remote result.") .. "</li>"
+		.. "<li>" .. translate("Remote DNS: Can avoid more DNS leaks, but some domestic domain names maybe to proxy!") .. "</li>"
+		.. "<li>" .. translate("Direct DNS: Internet experience may be better, but DNS will be leaked!") .. "</li>"
+		.. "</ul>"
+o:depends({dns_shunt = "chinadns-ng", tcp_proxy_mode = "proxy", chn_list = "direct"})
 
 o = s:taboption("DNS", ListValue, "use_default_dns", translate("Default DNS"))
 o.default = "direct"
@@ -465,14 +457,7 @@ o.description = "<ul>"
 		.. "<li>" .. translate("Remote DNS: Can avoid more DNS leaks, but some domestic domain names maybe to proxy!") .. "</li>"
 		.. "<li>" .. translate("Direct DNS: Internet experience may be better, but DNS will be leaked!") .. "</li>"
 		.. "</ul>"
-local _depends = {tcp_proxy_mode = "proxy"}
-if api.is_finded("smartdns") then
-	_depends["dns_shunt"] = "dnsmasq"
-end
-if api.is_finded("chinadns-ng") then
-	_depends["chinadns_ng"] = false
-end
-o:depends(_depends)
+o:depends({dns_shunt = "dnsmasq", tcp_proxy_mode = "proxy", chn_list = "direct"})
 
 o = s:taboption("DNS", Button, "clear_ipset", translate("Clear IPSET"), translate("Try this feature if the rule modification does not take effect."))
 o.inputstyle = "remove"
@@ -524,7 +509,7 @@ o = s:taboption("Proxy", Flag, "localhost_proxy", translate("Localhost Proxy"), 
 o.default = "1"
 o.rmempty = false
 
-o = s:taboption("Proxy", Flag, "client_proxy", translate("Client Proxy"), translate("When selected, devices in LAN can transparent proxy. Otherwise, it will not be proxy."))
+o = s:taboption("Proxy", Flag, "client_proxy", translate("Client Proxy"), translate("When selected, devices in LAN can transparent proxy. Otherwise, it will not be proxy. But you can still use access control to allow the designated device to proxy."))
 o.default = "1"
 o.rmempty = false
 
