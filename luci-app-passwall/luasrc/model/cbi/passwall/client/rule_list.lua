@@ -9,7 +9,6 @@ local chnlist_path = "/usr/share/passwall/rules/chnlist"
 local chnroute_path = "/usr/share/passwall/rules/chnroute"
 
 m = Map(appname)
-api.set_apply_on_parse(m)
 
 -- [[ Rule List Settings ]]--
 s = m:section(TypedSection, "global_rules")
@@ -39,9 +38,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local hosts= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(hosts, w) end)
 	for index, host in ipairs(hosts) do
-		if host:find("#") and host:find("#") == 1 then
+		if host:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.hostname(host) then
@@ -67,9 +67,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not ( datatypes.ipmask4(ipmask) or datatypes.ipmask6(ipmask) ) then
@@ -97,9 +98,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local hosts= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(hosts, w) end)
 	for index, host in ipairs(hosts) do
-		if host:find("#") and host:find("#") == 1  then
+		if host:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.hostname(host) then
@@ -125,9 +127,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not ( datatypes.ipmask4(ipmask) or datatypes.ipmask6(ipmask) ) then
@@ -153,9 +156,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local hosts= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(hosts, w) end)
 	for index, host in ipairs(hosts) do
-		if host:find("#") and host:find("#") == 1 then
+		if host:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.hostname(host) then
@@ -181,9 +185,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not ( datatypes.ipmask4(ipmask) or datatypes.ipmask6(ipmask) ) then
@@ -209,9 +214,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.ipmask4(ipmask) then
@@ -237,9 +243,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.ipmask6(ipmask) then
@@ -258,7 +265,7 @@ o.cfgvalue = function(self, section)
 	return fs.readfile(hosts) or ""
 end
 o.write = function(self, section, value)
-	fs.writefile(hosts, value:gsub("\r\n", "\n"))
+	fs.writefile(hosts, value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n"))
 end
 o.remove = function(self, section, value)
 	fs.writefile(hosts, "")

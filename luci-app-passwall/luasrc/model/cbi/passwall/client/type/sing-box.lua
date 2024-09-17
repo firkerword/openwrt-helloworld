@@ -334,7 +334,15 @@ if singbox_tags:find("with_quic") then
 	o.default = "3"
 	o:depends({ [option_name("protocol")] = "tuic" })
 
-	o = s:option(Value, option_name("tuic_alpn"), translate("QUIC TLS ALPN"))
+	o = s:option(ListValue, option_name("tuic_alpn"), translate("QUIC TLS ALPN"))
+	o.default = "default"
+	o:value("default", translate("Default"))
+	o:value("h3")
+	o:value("h2")
+	o:value("h3,h2")
+	o:value("http/1.1")
+	o:value("h2,http/1.1")
+	o:value("h3,h2,http/1.1")
 	o:depends({ [option_name("protocol")] = "tuic" })
 end
 
@@ -364,13 +372,17 @@ o:depends({ [option_name("protocol")] = "vmess" })
 o:depends({ [option_name("protocol")] = "vless" })
 o:depends({ [option_name("protocol")] = "http" })
 o:depends({ [option_name("protocol")] = "trojan" })
+o:depends({ [option_name("protocol")] = "shadowsocks" })
 
 o = s:option(ListValue, option_name("alpn"), translate("alpn"))
 o.default = "default"
 o:value("default", translate("Default"))
-o:value("h2,http/1.1")
+o:value("h3")
 o:value("h2")
+o:value("h3,h2")
 o:value("http/1.1")
+o:value("h2,http/1.1")
+o:value("h3,h2,http/1.1")
 o:depends({ [option_name("tls")] = true })
 
 o = s:option(Value, option_name("tls_serverName"), translate("Domain"))
@@ -378,6 +390,7 @@ o:depends({ [option_name("tls")] = true })
 o:depends({ [option_name("protocol")] = "hysteria"})
 o:depends({ [option_name("protocol")] = "tuic" })
 o:depends({ [option_name("protocol")] = "hysteria2" })
+o:depends({ [option_name("protocol")] = "shadowsocks" })
 
 o = s:option(Flag, option_name("tls_allowInsecure"), translate("allowInsecure"), translate("Whether unsafe connections are allowed. When checked, Certificate validation will be skipped."))
 o.default = "0"
@@ -385,6 +398,7 @@ o:depends({ [option_name("tls")] = true })
 o:depends({ [option_name("protocol")] = "hysteria"})
 o:depends({ [option_name("protocol")] = "tuic" })
 o:depends({ [option_name("protocol")] = "hysteria2" })
+o:depends({ [option_name("protocol")] = "shadowsocks" })
 
 if singbox_tags:find("with_ech") then
 	o = s:option(Flag, option_name("ech"), translate("ECH"))
@@ -635,11 +649,23 @@ o = s:option(Value, option_name("plugin_opts"), translate("opts"))
 o:depends({ [option_name("plugin_enabled")] = true })
 
 o = s:option(ListValue, option_name("domain_strategy"), translate("Domain Strategy"), translate("If is domain name, The requested domain name will be resolved to IP before connect."))
-o.default = "prefer_ipv6"
+o.default = ""
+o:value("", translate("Auto"))
 o:value("prefer_ipv4", translate("Prefer IPv4"))
 o:value("prefer_ipv6", translate("Prefer IPv6"))
 o:value("ipv4_only", translate("IPv4 Only"))
 o:value("ipv6_only", translate("IPv6 Only"))
+o:depends({ [option_name("protocol")] = "socks" })
+o:depends({ [option_name("protocol")] = "http" })
+o:depends({ [option_name("protocol")] = "shadowsocks" })
+o:depends({ [option_name("protocol")] = "shadowsocksr" })
+o:depends({ [option_name("protocol")] = "vmess" })
+o:depends({ [option_name("protocol")] = "trojan" })
+o:depends({ [option_name("protocol")] = "wireguard" })
+o:depends({ [option_name("protocol")] = "hysteria" })
+o:depends({ [option_name("protocol")] = "vless" })
+o:depends({ [option_name("protocol")] = "tuic" })
+o:depends({ [option_name("protocol")] = "hysteria2" })
 
 o = s:option(ListValue, option_name("to_node"), translate("Landing node"), translate("Only support a layer of proxy."))
 o.default = ""

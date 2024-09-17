@@ -185,8 +185,8 @@ if USE_DEFAULT_DNS == "chinadns_ng" and CHINADNS_DNS ~= "0" then
 	dnsmasq_default_dns = CHINADNS_DNS
 end
 
-local setflag_4= (NFTFLAG == "1") and "4#inet#fw4#" or ""
-local setflag_6= (NFTFLAG == "1") and "6#inet#fw4#" or ""
+local setflag_4= (NFTFLAG == "1") and "4#inet#passwall#" or ""
+local setflag_6= (NFTFLAG == "1") and "6#inet#passwall#" or ""
 
 if not fs.access(CACHE_DNS_PATH) then
 	fs.mkdir("/tmp/dnsmasq.d")
@@ -201,20 +201,27 @@ if not fs.access(CACHE_DNS_PATH) then
 		end
 	end
 
-	--始终用国内DNS解析节点域名
-	uci:foreach(appname, "nodes", function(t)
-		local address = t.address
-		if address == "engage.cloudflareclient.com" then return end
-		if datatypes.hostname(address) then
-			set_domain_dns(address, LOCAL_DNS)
-			set_domain_ipset(address, setflag_4 .. "passwall_vpslist," .. setflag_6 .. "passwall_vpslist6")
-		end
-	end)
-	log(string.format("  - 节点列表中的域名(vpslist)：%s", LOCAL_DNS or "默认"))
-
 	local fwd_dns
 	local ipset_flag
 	local no_ipv6
+
+	--始终用国内DNS解析节点域名
+	if true then
+		fwd_dns = LOCAL_DNS
+		if USE_DEFAULT_DNS == "chinadns_ng" and CHINADNS_DNS ~= "0" then
+			fwd_dns = nil
+		else
+			uci:foreach(appname, "nodes", function(t)
+				local address = t.address
+				if address == "engage.cloudflareclient.com" then return end
+				if datatypes.hostname(address) then
+					set_domain_dns(address, fwd_dns)
+					set_domain_ipset(address, setflag_4 .. "passwall_vpslist," .. setflag_6 .. "passwall_vpslist6")
+				end
+			end)
+		end
+		log(string.format("  - 节点列表中的域名(vpslist)：%s", fwd_dns or "默认"))
+	end
 
 	--直连（白名单）列表
 	if USE_DIRECT_LIST == "1" then
@@ -406,38 +413,40 @@ if not fs.access(CACHE_DNS_PATH) then
 		}
 	end
 
-	local address_out = io.open(CACHE_DNS_PATH .. "/000-address.conf", "a")
-	local server_out = io.open(CACHE_DNS_PATH .. "/001-server.conf", "a")
-	local ipset_out = io.open(CACHE_DNS_PATH .. "/ipset.conf", "a")
-	local set_name = "ipset"
-	if NFTFLAG == "1" then
-		set_name = "nftset"
+	if list1 and next(list1) then
+		local address_out = io.open(CACHE_DNS_PATH .. "/000-address.conf", "a")
+		local server_out = io.open(CACHE_DNS_PATH .. "/001-server.conf", "a")
+		local ipset_out = io.open(CACHE_DNS_PATH .. "/ipset.conf", "a")
+		local set_name = "ipset"
+		if NFTFLAG == "1" then
+			set_name = "nftset"
+		end
+		for key, value in pairs(list1) do
+			if value.address then
+				local domain = "." .. key
+				if key == "#" then
+					domain = key
+				end
+				address_out:write(string.format("address=/%s/%s\n", domain, value.address))
+			end
+			if value.dns and #value.dns > 0 then
+				for i, dns in ipairs(value.dns) do
+					server_out:write(string.format("server=/.%s/%s\n", key, dns))
+				end
+			end
+			if value.ipsets and #value.ipsets > 0 then
+				local ipsets_str = ""
+				for i, ipset in ipairs(value.ipsets) do
+					ipsets_str = ipsets_str .. ipset .. ","
+				end
+				ipsets_str = ipsets_str:sub(1, #ipsets_str - 1)
+				ipset_out:write(string.format("%s=/.%s/%s\n", set_name, key, ipsets_str))
+			end
+		end
+		address_out:close()
+		server_out:close()
+		ipset_out:close()
 	end
-	for key, value in pairs(list1) do
-		if value.address then
-			local domain = "." .. key
-			if key == "#" then
-				domain = key
-			end
-			address_out:write(string.format("address=/%s/%s\n", domain, value.address))
-		end
-		if value.dns and #value.dns > 0 then
-			for i, dns in ipairs(value.dns) do
-				server_out:write(string.format("server=/.%s/%s\n", key, dns))
-			end
-		end
-		if value.ipsets and #value.ipsets > 0 then
-			local ipsets_str = ""
-			for i, ipset in ipairs(value.ipsets) do
-				ipsets_str = ipsets_str .. ipset .. ","
-			end
-			ipsets_str = ipsets_str:sub(1, #ipsets_str - 1)
-			ipset_out:write(string.format("%s=/.%s/%s\n", set_name, key, ipsets_str))
-		end
-	end
-	address_out:close()
-	server_out:close()
-	ipset_out:close()
 
 	local f_out = io.open(CACHE_TEXT_FILE, "a")
 	f_out:write(new_text)

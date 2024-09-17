@@ -9,7 +9,6 @@ local has_chnlist = api.fs.access("/usr/share/passwall/rules/chnlist")
 local has_chnroute = api.fs.access("/usr/share/passwall/rules/chnroute")
 
 m = Map(appname)
-api.set_apply_on_parse(m)
 
 local nodes_table = {}
 for k, e in ipairs(api.get_valid_nodes()) do
@@ -74,7 +73,7 @@ local doh_validate = function(self, value, t)
 		for i = 1, #val do
 			local v = val[i]
 			if v then
-				if not datatypes.ipmask4(v) then
+				if not datatypes.ipmask4(v) and not datatypes.ipmask6(v) then
 					flag = 1
 				end
 			end
@@ -84,6 +83,65 @@ local doh_validate = function(self, value, t)
 		end
 	end
 	return nil, translate("DoH request address") .. " " .. translate("Format must be:") .. " URL,IP"
+end
+
+local chinadns_dot_validate = function(self, value, t)
+	local function isValidDoTString(s)
+		local prefix = "tls://"
+		if s:sub(1, #prefix) ~= prefix then
+			return false
+		end
+		local address = s:sub(#prefix + 1)
+		local at_index = address:find("@")
+		local hash_index = address:find("#")
+		local domain, ip, port
+		if at_index then
+			if hash_index then
+				domain = address:sub(1, at_index - 1)
+				ip = address:sub(at_index + 1, hash_index - 1)
+				port = address:sub(hash_index + 1)
+			else
+				domain = address:sub(1, at_index - 1)
+				ip = address:sub(at_index + 1)
+				port = nil
+			end
+		else
+			if hash_index then
+				ip = address:sub(1, hash_index - 1)
+				port = address:sub(hash_index + 1)
+			else
+				ip = address
+				port = nil
+			end
+		end
+		local function isValidPort(port)
+			if not port then return true end
+			local num = tonumber(port)
+			return num and num > 0 and num < 65536
+		end
+		local function isValidDomain(domain)
+			if not domain then return true end
+			return #domain > 0
+		end
+		local function isValidIP(ip)
+			return datatypes.ipaddr(ip) or datatypes.ip6addr(ip)
+		end
+		if not isValidIP(ip) or not isValidPort(port) then
+			return false
+		end
+		if not isValidDomain(domain) then
+			return false
+		end
+		return true
+	end
+
+	if value ~= "" then
+		value = api.trim(value)
+		if isValidDoTString(value) then
+			return value
+		end
+	end
+	return nil, translate("Direct DNS") .. " DoT " .. translate("Format must be:") .. " tls://Domain@IP(#Port) or tls://IP(#Port)"
 end
 
 m:append(Template(appname .. "/global/status"))
@@ -274,6 +332,50 @@ if api.is_finded("smartdns") then
 	group_domestic.description = translate("You only need to configure domestic DNS packets in SmartDNS and set it redirect or as Dnsmasq upstream, and fill in the domestic DNS group name here.")
 end
 
+o = s:taboption("DNS", ListValue, "direct_dns_mode", translate("Direct DNS") .. " " .. translate("Request protocol"))
+o.default = ""
+o:value("", translate("Auto"))
+o:value("udp", translatef("Requery DNS By %s", "UDP"))
+o:value("tcp", translatef("Requery DNS By %s", "TCP"))
+if os.execute("chinadns-ng -V | grep -i wolfssl >/dev/null") == 0 then
+	o:value("dot", translatef("Requery DNS By %s", "DoT"))
+end
+--TO DO
+--o:value("doh", "DoH")
+o:depends({dns_shunt = "dnsmasq"})
+o:depends({dns_shunt = "chinadns-ng"})
+
+o = s:taboption("DNS", Value, "direct_dns_udp", translate("Direct DNS"))
+o.datatype = "or(ipaddr,ipaddrport)"
+o.default = "223.5.5.5"
+o:value("223.5.5.5")
+o:value("223.6.6.6")
+o:value("119.29.29.29")
+o:value("180.184.1.1")
+o:value("180.184.2.2")
+o:value("114.114.114.114")
+o:depends("direct_dns_mode", "udp")
+
+o = s:taboption("DNS", Value, "direct_dns_tcp", translate("Direct DNS"))
+o.datatype = "or(ipaddr,ipaddrport)"
+o.default = "223.5.5.5"
+o:value("223.5.5.5")
+o:value("223.6.6.6")
+o:value("180.184.1.1")
+o:value("180.184.2.2")
+o:depends("direct_dns_mode", "tcp")
+
+o = s:taboption("DNS", Value, "direct_dns_dot", translate("Direct DNS"))
+o.default = "tls://dot.pub@1.12.12.12"
+o:value("tls://dot.pub@1.12.12.12")
+o:value("tls://dot.pub@120.53.53.53")
+o:value("tls://dot.360.cn@36.99.170.86")
+o:value("tls://dot.360.cn@101.198.191.4")
+o:value("tls://dns.alidns.com@2400:3200::1")
+o:value("tls://dns.alidns.com@2400:3200:baba::1")
+o.validate = chinadns_dot_validate
+o:depends("direct_dns_mode", "dot")
+
 o = s:taboption("DNS", Flag, "filter_proxy_ipv6", translate("Filter Proxy Host IPv6"), translate("Experimental feature."))
 o.default = "0"
 
@@ -388,6 +490,7 @@ o:value("1.1.1.2", "1.1.1.2 (CloudFlare-Security)")
 o:value("8.8.4.4", "8.8.4.4 (Google)")
 o:value("8.8.8.8", "8.8.8.8 (Google)")
 o:value("9.9.9.9", "9.9.9.9 (Quad9-Recommended)")
+o:value("149.112.112.112", "149.112.112.112 (Quad9-Recommended)")
 o:value("208.67.220.220", "208.67.220.220 (OpenDNS)")
 o:value("208.67.222.222", "208.67.222.222 (OpenDNS)")
 o:depends({dns_mode = "dns2socks"})
@@ -404,7 +507,8 @@ o:value("https://1.1.1.1/dns-query", "CloudFlare")
 o:value("https://1.1.1.2/dns-query", "CloudFlare-Security")
 o:value("https://8.8.4.4/dns-query", "Google 8844")
 o:value("https://8.8.8.8/dns-query", "Google 8888")
-o:value("https://9.9.9.9/dns-query", "Quad9-Recommended")
+o:value("https://9.9.9.9/dns-query", "Quad9-Recommended 9.9.9.9")
+o:value("https://149.112.112.112/dns-query", "Quad9-Recommended 149.112.112.112")
 o:value("https://208.67.222.222/dns-query", "OpenDNS")
 o:value("https://dns.adguard.com/dns-query,176.103.130.130", "AdGuard")
 o:value("https://doh.libredns.gr/dns-query,116.202.176.26", "LibreDNS")
@@ -435,16 +539,21 @@ o.validate = function(self, value, t)
 	return value
 end
 
-o = s:taboption("DNS", ListValue, "chinadns_ng_default_tag", translate("ChinaDNS-NG Domain Default Tag"))
+o = s:taboption("DNS", ListValue, "chinadns_ng_default_tag", translate("Default DNS"))
 o.default = "none"
-o:value("none", translate("Default"))
 o:value("gfw", translate("Remote DNS"))
 o:value("chn", translate("Direct DNS"))
-o.description = "<ul>"
+o:value("none", translate("Smart, Do not accept no-ip reply from Direct DNS"))
+o:value("none_noip", translate("Smart, Accept no-ip reply from Direct DNS"))
+local desc = "<ul>"
 		.. "<li>" .. translate("When not matching any domain name list:") .. "</li>"
-		.. "<li>" .. translate("Default: Forward to both direct and remote DNS, if the direct DNS resolution result is a mainland China ip, then use the direct result, otherwise use the remote result.") .. "</li>"
 		.. "<li>" .. translate("Remote DNS: Can avoid more DNS leaks, but some domestic domain names maybe to proxy!") .. "</li>"
 		.. "<li>" .. translate("Direct DNS: Internet experience may be better, but DNS will be leaked!") .. "</li>"
+o.description = desc
+		.. "<li>" .. translate("Smart: Forward to both direct and remote DNS, if the direct DNS resolution result is a mainland China IP, then use the direct result, otherwise use the remote result.") .. "</li>"
+		.. "<li>" .. translate("In smart mode, no-ip reply from Direct DNS:") .. "</li>"
+		.. "<li>" .. translate("Do not accept: Wait and use Remote DNS Reply.") .. "</li>"
+		.. "<li>" .. translate("Accept: Trust the Reply, using this option can improve DNS resolution speeds for some mainland IPv4-only sites.") .. "</li>"
 		.. "</ul>"
 o:depends({dns_shunt = "chinadns-ng", tcp_proxy_mode = "proxy", chn_list = "direct"})
 
@@ -452,14 +561,17 @@ o = s:taboption("DNS", ListValue, "use_default_dns", translate("Default DNS"))
 o.default = "direct"
 o:value("remote", translate("Remote DNS"))
 o:value("direct", translate("Direct DNS"))
-o.description = "<ul>"
-		.. "<li>" .. translate("When not matching any domain name list:") .. "</li>"
-		.. "<li>" .. translate("Remote DNS: Can avoid more DNS leaks, but some domestic domain names maybe to proxy!") .. "</li>"
-		.. "<li>" .. translate("Direct DNS: Internet experience may be better, but DNS will be leaked!") .. "</li>"
-		.. "</ul>"
+o.description = desc .. "</ul>"
 o:depends({dns_shunt = "dnsmasq", tcp_proxy_mode = "proxy", chn_list = "direct"})
 
-o = s:taboption("DNS", Button, "clear_ipset", translate("Clear IPSET"), translate("Try this feature if the rule modification does not take effect."))
+o = s:taboption("DNS", Flag, "dns_redirect", "DNS " .. translate("Redirect"), translate("Force Router DNS server to all local devices."))
+o.default = "0"
+
+if (uci:get(appname, "@global_forwarding[0]", "use_nft") or "0") == "1" then
+	o = s:taboption("DNS", Button, "clear_ipset", translate("Clear NFTSET"), translate("Try this feature if the rule modification does not take effect."))
+else
+	o = s:taboption("DNS", Button, "clear_ipset", translate("Clear IPSET"), translate("Try this feature if the rule modification does not take effect."))
+end
 o.inputstyle = "remove"
 function o.write(e, e)
 	luci.sys.call('[ -n "$(nft list sets 2>/dev/null | grep \"passwall_\")" ] && sh /usr/share/passwall/nftables.sh flush_nftset_reload || sh /usr/share/passwall/iptables.sh flush_ipset_reload > /dev/null 2>&1 &')

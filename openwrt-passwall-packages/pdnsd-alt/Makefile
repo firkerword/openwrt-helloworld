@@ -13,6 +13,7 @@ PKG_SOURCE_URL:=https://github.com/shadowsocks/pdnsd.git
 PKG_SOURCE_DATE:=2012-04-26
 PKG_SOURCE_VERSION:=a8e46ccba7b0fa2230d6c42ab6dcd92926f6c21d
 PKG_MIRROR_HASH:=e3e9c56cf91b12d8db73def2c247be2f726a052bed012f7a1e48946375f8e478
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.xz
 
 PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
@@ -47,11 +48,6 @@ define Package/pdnsd-alt/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/pdnsd $(1)/usr/sbin/pdnsd
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/pdnsd-ctl $(1)/usr/sbin/pdnsd-ctl
-
-	#$(INSTALL_DIR) $(1)/etc
-	#$(INSTALL_CONF) $(PKG_INSTALL_DIR)/etc/pdnsd.conf.sample $(1)/etc/pdnsd.conf
-	#$(INSTALL_DIR) $(1)/etc/init.d
-	#$(INSTALL_BIN) ./files/pdnsd.init $(1)/etc/init.d/pdnsd
 endef
 
 $(eval $(call BuildPackage,pdnsd-alt))

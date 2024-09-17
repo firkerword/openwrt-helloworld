@@ -19,7 +19,8 @@ _M.hysteria = {
 	match_fmt_str = "linux%%-%s$",
 	file_tree = {
 		armv6 = "arm",
-		armv7 = "arm"
+		armv7 = "arm",
+		mipsel = "mipsle"
 	}
 }
 
@@ -62,15 +63,17 @@ _M["chinadns-ng"] = {
 	default_path = "/usr/bin/chinadns-ng",
 	match_fmt_str = "%s",
 	file_tree = {
-		x86_64  = "x86_64@",
-		x86     = "i686",
-		mips    = "mips%-.*mips32%+soft_float@",
-		mipsel  = "mipsel.*mips32%+soft_float@",
-		aarch64 = "aarch64.*v8a",
-		armv5   = "arm.*v5te",
-		armv6   = "arm.*v6t2",
-		armv7   = "eabihf.*v7a",
-		armv8   = "aarch64.*v8a"
+		x86_64  = "wolfssl@x86_64.*x86_64@",
+		x86     = "wolfssl@i386.*i686",
+		mips    = "wolfssl@mips%-.*mips32%+soft_float@",
+		mips64  = "wolfssl@mips64%-.*mips64%+soft_float@",
+		mipsel  = "wolfssl@mipsel.*mips32%+soft_float@",
+		aarch64 = "wolfssl_noasm@aarch64.*v8a",
+		rockchip = "wolfssl@aarch64.*v8a",
+		armv5   = "wolfssl@arm.*v5te",
+		armv6   = "wolfssl@arm.*v6t2",
+		armv7   = "wolfssl@arm.*eabihf.*v7a",
+		armv8   = "wolfssl_noasm@aarch64.*v8a"
 	}
 }
 

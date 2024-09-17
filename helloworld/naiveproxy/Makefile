@@ -5,12 +5,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=naiveproxy
-PKG_VERSION:=121.0.6167.71-1
+PKG_VERSION:=128.0.6613.40-3
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/klzgrad/naiveproxy/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=8e6d3029a0249140595fab3d668103881689f6c7ef7c65230191f674a370b309
+PKG_HASH:=3c2beaedf5c1f0a909dc3986caf59bcc3829c2a659c2a8f9d1e55daeb4faa7bb
 
 PKG_LICENSE:=BSD 3-Clause
 PKG_LICENSE_FILES:=LICENSE
@@ -55,22 +55,22 @@ ifneq ($(CONFIG_CCACHE),)
   export naive_ccache_flags=cc_wrapper="$(CCACHE)"
 endif
 
-CLANG_VER:=18-init-12938-geb1d5065-1
-CLANG_FILE:=clang-llvmorg-$(CLANG_VER).tgz
+CLANG_VER:=19-init-14561-gecea8371-3000
+CLANG_FILE:=clang-llvmorg-$(CLANG_VER).tar.xz
 define Download/CLANG
 	URL:=https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64
 	URL_FILE:=$(CLANG_FILE)
 	FILE:=$(CLANG_FILE)
-	HASH:=fd1628fdb22157a7328c25802a745f17f92f5210a8b62591202deb92413f52e5
+	HASH:=01286e19596f8297700fb82a186753504d660582d7dc36546b369fdd9ba01f33
 endef
 
-PGO_VER:=6167-1705427108-cb39f8a22759d3159f79efc273ac8b13a0f3882a
+PGO_VER:=6613-1723571743-978bf352c6598979c1835e8a17c4382c57186e27-bfa8880547ba8b84e6f5efee6db486daf237d00d
 PGO_FILE:=chrome-linux-$(PGO_VER).profdata
 define Download/PGO_PROF
 	URL:=https://storage.googleapis.com/chromium-optimization-profiles/pgo_profiles
 	URL_FILE:=$(PGO_FILE)
 	FILE:=$(PGO_FILE)
-	HASH:=7632c875db539cb1d4a0df6eb3acc9e155d2d477376dec1f815081bbae7cdd4f
+	HASH:=696e479cdaff02a446ca3446b32790c89144156a35df90c90b1806d2ace429b4
 endef
 
 define Build/Prepare
@@ -81,7 +81,7 @@ define Build/Prepare
 		mkdir -p "chrome/build/pgo_profiles" ; \
 		$(CP) "$(DL_DIR)/$(PGO_FILE)" "chrome/build/pgo_profiles" ; \
 		mkdir -p "third_party/llvm-build/Release+Asserts" ; \
-		$(TAR) -xzf "$(DL_DIR)/$(CLANG_FILE)" -C "third_party/llvm-build/Release+Asserts" ; \
+		$(TAR) -xJf "$(DL_DIR)/$(CLANG_FILE)" -C "third_party/llvm-build/Release+Asserts" ; \
 		echo -e "llvmorg-$(CLANG_VER)" > "third_party/llvm-build/Release+Asserts/cr_build_revision" ; \
 		popd ; \
 	)
