@@ -293,6 +293,13 @@ s:tab("DNS", translate("DNS"))
 dns_shunt = s:taboption("DNS", ListValue, "dns_shunt", "DNS " .. translate("Shunt"))
 dns_shunt:value("dnsmasq", "Dnsmasq")
 dns_shunt:value("chinadns-ng", translate("ChinaDNS-NG (recommended)"))
+if api.is_finded("smartdns") then
+	dns_shunt:value("smartdns", "SmartDNS")
+	group_domestic = s:taboption("DNS", Value, "group_domestic", translate("Domestic group name"))
+	group_domestic.placeholder = "local"
+	group_domestic:depends("dns_shunt", "smartdns")
+	group_domestic.description = translate("You only need to configure domestic DNS packets in SmartDNS and set it redirect or as Dnsmasq upstream, and fill in the domestic DNS group name here.")
+end
 
 o = s:taboption("DNS", ListValue, "direct_dns_mode", translate("Direct DNS") .. " " .. translate("Request protocol"))
 o.default = ""
