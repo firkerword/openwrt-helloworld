@@ -39,7 +39,7 @@ jobs:
       - name: Upload packages
         uses: ncipollo/release-action@v1
         with:
-          name: "passwall-${{ matrix.arch }}"
+          name: "passwall-smartdns-${{ matrix.arch }}"
           token: ${{ secrets.workflow_token }}
           allowUpdates: true
           replacesArtifacts: true
