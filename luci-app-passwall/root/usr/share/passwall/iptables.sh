@@ -230,10 +230,10 @@ load_acl() {
 			}
 
 			_acl_list=${TMP_ACL_PATH}/${sid}/rule_list
-			[ $use_interface = "1" ] && _acl_list=${TMP_ACL_PATH}/${sid}/interface_list
+			[ "$use_interface" = "1" ] && _acl_list=${TMP_ACL_PATH}/${sid}/interface_list
 
 			for i in $(cat $_acl_list); do
-				if [ $use_interface = "0" ]; then
+				if [ "$use_interface" = "0" ]; then
 					if [ -n "$(echo ${i} | grep '^iprange:')" ]; then
 						_iprange=$(echo ${i} | sed 's#iprange:##g')
 						_ipt_source=$(factor ${_iprange} "-m iprange --src-range")
@@ -726,7 +726,7 @@ add_firewall_rule() {
 	echolog "开始加载防火墙规则..."
 	ipset -! create $IPSET_LANLIST nethash maxelem 1048576
 	ipset -! create $IPSET_VPSLIST nethash maxelem 1048576
-	ipset -! create $IPSET_SHUNTLIST nethash maxelem 1048576
+	ipset -! create $IPSET_SHUNTLIST nethash maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_GFW nethash maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_CHN nethash maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_BLACKLIST nethash maxelem 1048576 timeout 172800
@@ -735,22 +735,35 @@ add_firewall_rule() {
 
 	ipset -! create $IPSET_LANLIST6 nethash family inet6 maxelem 1048576
 	ipset -! create $IPSET_VPSLIST6 nethash family inet6 maxelem 1048576
-	ipset -! create $IPSET_SHUNTLIST6 nethash family inet6 maxelem 1048576
+	ipset -! create $IPSET_SHUNTLIST6 nethash family inet6 maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_GFW6 nethash family inet6 maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_CHN6 nethash family inet6 maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_BLACKLIST6 nethash family inet6 maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_WHITELIST6 nethash family inet6 maxelem 1048576 timeout 172800
 	ipset -! create $IPSET_BLOCKLIST6 nethash family inet6 maxelem 1048576 timeout 172800
 
-	local shunt_ids=$(uci show $CONFIG | grep "=shunt_rules" | awk -F '.' '{print $2}' | awk -F '=' '{print $1}')
-
-	for shunt_id in $shunt_ids; do
-		config_n_get $shunt_id ip_list | tr -s "\r\n" "\n" | sed -e "/^$/d" | grep -E "(\.((2(5[0-5]|[0-4][0-9]))|[0-1]?[0-9]{1,2})){3}" | sed -e "s/^/add $IPSET_SHUNTLIST &/g" | awk '{print $0} END{print "COMMIT"}' | ipset -! -R
+	#分流规则的IP列表(使用分流节点时导入)
+	local USE_SHUNT_NODE=0
+	for _node in $TCP_NODE $UDP_NODE; do
+		node_protocol=$(config_n_get $_node protocol)
+		[ "$node_protocol" = "_shunt" ] && { USE_SHUNT_NODE=1; break; }
 	done
-
-	for shunt_id in $shunt_ids; do
-		config_n_get $shunt_id ip_list | tr -s "\r\n" "\n" | sed -e "/^$/d" | grep -E "([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4}" | sed -e "s/^/add $IPSET_SHUNTLIST6 &/g" | awk '{print $0} END{print "COMMIT"}' | ipset -! -R
-	done
+	[ "$USE_SHUNT_NODE" = "0" ] && {
+		for acl_section in $(uci show ${CONFIG} | grep "=acl_rule" | cut -d '.' -sf 2 | cut -d '=' -sf 1); do
+			[ "$(config_n_get $acl_section enabled)" != "1" ] && continue
+			for _node in $(config_n_get $acl_section tcp_node) $(config_n_get $acl_section udp_node); do
+				node_protocol=$(config_n_get $_node protocol)
+				[ "$node_protocol" = "_shunt" ] && { USE_SHUNT_NODE=1; break 2; }
+			done
+		done
+	}
+	[ "$USE_SHUNT_NODE" = "1" ] && {
+		local shunt_ids=$(uci show $CONFIG | grep "=shunt_rules" | awk -F '.' '{print $2}' | awk -F '=' '{print $1}')
+		for shunt_id in $shunt_ids; do
+			config_n_get $shunt_id ip_list | tr -s "\r\n" "\n" | sed -e "/^$/d" | grep -E "(\.((2(5[0-5]|[0-4][0-9]))|[0-1]?[0-9]{1,2})){3}" | sed -e "s/^/add $IPSET_SHUNTLIST &/g" -e "s/$/ timeout 0/g" | awk '{print $0} END{print "COMMIT"}' | ipset -! -R
+			config_n_get $shunt_id ip_list | tr -s "\r\n" "\n" | sed -e "/^$/d" | grep -E "([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4}" | sed -e "s/^/add $IPSET_SHUNTLIST6 &/g" -e "s/$/ timeout 0/g" | awk '{print $0} END{print "COMMIT"}' | ipset -! -R
+		done
+	}
 
 	cat $RULES_PATH/chnroute | tr -s '\n' | grep -v "^#" | sed -e "/^$/d" | sed -e "s/^/add $IPSET_CHN &/g" -e "s/$/ timeout 0/g" | awk '{print $0} END{print "COMMIT"}' | ipset -! -R
 	cat $RULES_PATH/proxy_ip | tr -s '\n' | grep -v "^#" | sed -e "/^$/d" | grep -E "(\.((2(5[0-5]|[0-4][0-9]))|[0-1]?[0-9]{1,2})){3}" | sed -e "s/^/add $IPSET_BLACKLIST &/g" -e "s/$/ timeout 0/g" | awk '{print $0} END{print "COMMIT"}' | ipset -! -R
@@ -1216,7 +1229,7 @@ del_firewall_rule() {
 
 	destroy_ipset $IPSET_LANLIST
 	destroy_ipset $IPSET_VPSLIST
-	#destroy_ipset $IPSET_SHUNTLIST
+	destroy_ipset $IPSET_SHUNTLIST
 	#destroy_ipset $IPSET_GFW
 	#destroy_ipset $IPSET_CHN
 	#destroy_ipset $IPSET_BLACKLIST
@@ -1225,7 +1238,7 @@ del_firewall_rule() {
 
 	destroy_ipset $IPSET_LANLIST6
 	destroy_ipset $IPSET_VPSLIST6
-	#destroy_ipset $IPSET_SHUNTLIST6
+	destroy_ipset $IPSET_SHUNTLIST6
 	#destroy_ipset $IPSET_GFW6
 	#destroy_ipset $IPSET_CHN6
 	#destroy_ipset $IPSET_BLACKLIST6
