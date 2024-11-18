@@ -8,7 +8,10 @@ local jsonc = require "luci.jsonc"
 local name = 'passwall'
 local api = require ("luci.passwall.api")
 local arg1 = arg[1]
+local arg2 = arg[2]
+local arg3 = arg[3]
 
+local nftable_name = "inet passwall"
 local rule_path = "/usr/share/" .. name .. "/rules"
 local reboot = 0
 local gfwlist_update = 0
@@ -19,7 +22,7 @@ local geoip_update = 0
 local geosite_update = 0
 
 -- match comments/title/whitelist/ip address/excluded_domain
-local comment_pattern = "^[!\\[@]+"
+local comment_pattern = "^[#!\\[@]+"
 local ip_pattern = "^%d+%.%d+%.%d+%.%d+"
 local ip4_ipset_pattern = "^%d+%.%d+%.%d+%.%d+[%/][%d]+$"
 local ip6_ipset_pattern = ":-[%x]+%:+[%x]-[%/][%d]+$"
@@ -34,6 +37,10 @@ local geoip_api =  "https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/re
 local geosite_api =  "https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases/latest"
 local asset_location = ucic:get_first(name, 'global_rules', "v2ray_location_asset", "/usr/share/v2ray/")
 local use_nft = ucic:get(name, "@global_forwarding[0]", "use_nft") or "0"
+
+if arg3 == "cron" then
+	arg2 = nil
+end
 
 local log = function(...)
 	if arg1 then
@@ -54,10 +61,10 @@ local function gen_nftset(set_name, ip_type, tmp_file, input_file)
 	nft_file, err = io.open(tmp_file, "w")
 	nft_file:write('#!/usr/sbin/nft -f\n')
 	nft_file:write(string.format('define %s = {%s}\n', set_name, string.gsub(element, "%s*%c+", " timeout 3650d, ")))
-	if luci.sys.call(string.format('nft "list set inet fw4 %s" >/dev/null 2>&1', set_name)) ~= 0 then
-		nft_file:write(string.format('add set inet fw4 %s { type %s; flags interval, timeout; timeout 2d; gc-interval 2d; auto-merge; }\n', set_name, ip_type))
+	if luci.sys.call(string.format('nft "list set %s %s" >/dev/null 2>&1', nftable_name, set_name)) ~= 0 then
+		nft_file:write(string.format('add set %s %s { type %s; flags interval, timeout; timeout 2d; gc-interval 2d; auto-merge; }\n', nftable_name, set_name, ip_type))
 	end
-	nft_file:write(string.format('add element inet fw4 %s $%s\n', set_name, set_name))
+	nft_file:write(string.format('add element %s %s $%s\n', nftable_name, set_name, set_name))
 	nft_file:close()
 	luci.sys.call(string.format('nft -f %s &>/dev/null',tmp_file))
 	os.remove(tmp_file)
@@ -69,9 +76,9 @@ local function gen_cache(set_name, ip_type, input_file, output_file)
 	local tmp_file = output_file .. "_tmp"
 	local tmp_set_name = set_name .. "_tmp"
 	gen_nftset(tmp_set_name, ip_type, tmp_file, input_file)
-	luci.sys.call("nft list set inet fw4 " ..tmp_set_name.. " | sed 's/" ..tmp_set_name.. "/" ..set_name.. "/g' | cat > " ..output_file)
-	luci.sys.call("nft flush set inet fw4 " ..tmp_set_name)
-	luci.sys.call("nft delete set inet fw4 " ..tmp_set_name)
+	luci.sys.call(string.format('nft list set %s %s | sed "s/%s/%s/g" | cat > %s', nftable_name, tmp_set_name, tmp_set_name, set_name, output_file))
+	luci.sys.call(string.format('nft flush set %s %s', nftable_name, tmp_set_name))
+	luci.sys.call(string.format('nft delete set %s %s', nftable_name, tmp_set_name))
 end
 
 -- curl
@@ -326,14 +333,14 @@ local function fetch_geosite()
 		local json = jsonc.parse(content)
 		if json.tag_name and json.assets then
 			for _, v in ipairs(json.assets) do
-				if v.name and v.name == "geosite.dat.sha256sum" then
+				if v.name and (v.name == "geosite.dat.sha256sum" or v.name == "dlc.dat.sha256sum") then
 					local sret = curl(v.browser_download_url, "/tmp/geosite.dat.sha256sum")
 					if sret == 200 then
 						local f = io.open("/tmp/geosite.dat.sha256sum", "r")
 						local content = f:read()
 						f:close()
 						f = io.open("/tmp/geosite.dat.sha256sum", "w")
-						f:write(content:gsub("geosite.dat", "/tmp/geosite.dat"), "")
+						f:write(content:gsub("[^%s]+.dat", "/tmp/geosite.dat"), "")
 						f:close()
 
 						if nixio.fs.access(asset_location .. "geosite.dat") then
@@ -344,7 +351,7 @@ local function fetch_geosite()
 							end
 						end
 						for _2, v2 in ipairs(json.assets) do
-							if v2.name and v2.name == "geosite.dat" then
+							if v2.name and (v2.name == "geosite.dat" or v2.name == "dlc.dat") then
 								sret = curl(v2.browser_download_url, "/tmp/geosite.dat")
 								if luci.sys.call('sha256sum -c /tmp/geosite.dat.sha256sum > /dev/null 2>&1') == 0 then
 									luci.sys.call(string.format("mkdir -p %s && cp -f %s %s", asset_location, "/tmp/geosite.dat", asset_location .. "geosite.dat"))
@@ -369,8 +376,8 @@ local function fetch_geosite()
 	return 0
 end
 
-if arg[2] then
-	string.gsub(arg[2], '[^' .. "," .. ']+', function(w)
+if arg2 then
+	string.gsub(arg2, '[^' .. "," .. ']+', function(w)
 		if w == "gfwlist" then
 			gfwlist_update = 1
 		end
@@ -459,11 +466,17 @@ ucic:save(name)
 luci.sys.call("uci commit " .. name)
 
 if reboot == 1 then
+	if arg3 == "cron" then
+		if not nixio.fs.access("/var/lock/" .. name .. ".lock") then
+			luci.sys.call("touch /tmp/lock/" .. name .. "_cron.lock")
+		end
+	end
+
 	log("重启服务，应用新的规则。")
 	if use_nft == "1" then
-		luci.sys.call("sh /usr/share/" .. name .. "/nftables.sh flush_nftset > /dev/null 2>&1 &")
+		luci.sys.call("sh /usr/share/" .. name .. "/nftables.sh flush_nftset_reload > /dev/null 2>&1 &")
 	else
-		luci.sys.call("sh /usr/share/" .. name .. "/iptables.sh flush_ipset > /dev/null 2>&1 &")
+		luci.sys.call("sh /usr/share/" .. name .. "/iptables.sh flush_ipset_reload > /dev/null 2>&1 &")
 	end
 end
 log("规则更新完毕...")

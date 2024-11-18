@@ -109,7 +109,7 @@ o = s:option(ListValue, option_name("flow"), translate("flow"))
 o.default = ""
 o:value("", translate("Disable"))
 o:value("xtls-rprx-vision")
-o:depends({ [option_name("protocol")] = "vless", [option_name("tls")] = true, [option_name("transport")] = "tcp" })
+o:depends({ [option_name("protocol")] = "vless", [option_name("tls")] = true, [option_name("transport")] = "raw" })
 
 o = s:option(Flag, option_name("tls"), translate("TLS"))
 o.default = 0
@@ -129,6 +129,7 @@ o.validate = function(self, value, t)
 end
 o:depends({ [option_name("protocol")] = "vmess" })
 o:depends({ [option_name("protocol")] = "vless" })
+o:depends({ [option_name("protocol")] = "http" })
 o:depends({ [option_name("protocol")] = "socks" })
 o:depends({ [option_name("protocol")] = "shadowsocks" })
 o:depends({ [option_name("protocol")] = "trojan" })
@@ -141,7 +142,7 @@ o:depends({ [option_name("tls")] = true })
 o = s:option(Value, option_name("reality_private_key"), translate("Private Key"))
 o:depends({ [option_name("reality")] = true })
 
-o = s:option(Value, option_name("reality_shortId"), translate("Short Id"))
+o = s:option(DynamicList, option_name("reality_shortId"), translate("Short Id"))
 o:depends({ [option_name("reality")] = true })
 
 o = s:option(Value, option_name("reality_dest"), translate("Dest"))
@@ -153,9 +154,12 @@ o:depends({ [option_name("reality")] = true })
 
 o = s:option(ListValue, option_name("alpn"), translate("alpn"))
 o.default = "h2,http/1.1"
-o:value("h2,http/1.1")
+o:value("h3")
 o:value("h2")
+o:value("h3,h2")
 o:value("http/1.1")
+o:value("h2,http/1.1")
+o:value("h3,h2,http/1.1")
 o:depends({ [option_name("tls")] = true })
 
 -- o = s:option(Value, option_name("minversion"), translate("minversion"))
@@ -194,13 +198,15 @@ o.validate = function(self, value, t)
 end
 
 o = s:option(ListValue, option_name("transport"), translate("Transport"))
-o:value("tcp", "TCP")
+o:value("raw", "RAW")
 o:value("mkcp", "mKCP")
 o:value("ws", "WebSocket")
 o:value("h2", "HTTP/2")
 o:value("ds", "DomainSocket")
 o:value("quic", "QUIC")
 o:value("grpc", "gRPC")
+o:value("httpupgrade", "HttpUpgrade")
+o:value("xhttp", "XHTTP")
 o:depends({ [option_name("protocol")] = "vmess" })
 o:depends({ [option_name("protocol")] = "vless" })
 o:depends({ [option_name("protocol")] = "socks" })
@@ -214,6 +220,30 @@ o:depends({ [option_name("transport")] = "ws" })
 
 o = s:option(Value, option_name("ws_path"), translate("WebSocket Path"))
 o:depends({ [option_name("transport")] = "ws" })
+
+-- [[ HttpUpgrade部分 ]]--
+o = s:option(Value, option_name("httpupgrade_host"), translate("HttpUpgrade Host"))
+o:depends({ [option_name("transport")] = "httpupgrade" })
+
+o = s:option(Value, option_name("httpupgrade_path"), translate("HttpUpgrade Path"))
+o.placeholder = "/"
+o:depends({ [option_name("transport")] = "httpupgrade" })
+
+-- [[ SplitHTTP部分 ]]--
+o = s:option(Value, option_name("xhttp_host"), translate("XHTTP Host"))
+o:depends({ [option_name("transport")] = "xhttp" })
+
+o = s:option(Value, option_name("xhttp_path"), translate("XHTTP Path"))
+o.placeholder = "/"
+o:depends({ [option_name("transport")] = "xhttp" })
+
+o = s:option(Value, option_name("xhttp_maxuploadsize"), translate("maxUploadSize"))
+o.default = "1000000"
+o:depends({ [option_name("transport")] = "xhttp" })
+
+o = s:option(Value, option_name("xhttp_maxconcurrentuploads"), translate("maxConcurrentUploads"))
+o.default = "10"
+o:depends({ [option_name("transport")] = "xhttp" })
 
 -- [[ HTTP/2部分 ]]--
 
@@ -229,7 +259,7 @@ o:depends({ [option_name("transport")] = "h2" })
 o = s:option(ListValue, option_name("tcp_guise"), translate("Camouflage Type"))
 o:value("none", "none")
 o:value("http", "http")
-o:depends({ [option_name("transport")] = "tcp" })
+o:depends({ [option_name("transport")] = "raw" })
 
 -- HTTP域名
 o = s:option(DynamicList, option_name("tcp_guise_http_host"), translate("HTTP Host"))
@@ -299,13 +329,12 @@ o = s:option(Value, option_name("grpc_serviceName"), "ServiceName")
 o:depends({ [option_name("transport")] = "grpc" })
 
 o = s:option(Flag, option_name("acceptProxyProtocol"), translate("acceptProxyProtocol"), translate("Whether to receive PROXY protocol, when this node want to be fallback or forwarded by proxy, it must be enable, otherwise it cannot be used."))
-o:depends({ [option_name("transport")] = "tcp" })
-o:depends({ [option_name("transport")] = "ws" })
+o.default = "0"
 
 -- [[ Fallback部分 ]]--
 o = s:option(Flag, option_name("fallback"), translate("Fallback"))
-o:depends({ [option_name("protocol")] = "vless", [option_name("transport")] = "tcp" })
-o:depends({ [option_name("protocol")] = "trojan", [option_name("transport")] = "tcp" })
+o:depends({ [option_name("protocol")] = "vless", [option_name("transport")] = "raw" })
+o:depends({ [option_name("protocol")] = "trojan", [option_name("transport")] = "raw" })
 
 --[[
 o = s:option(Value, option_name("fallback_alpn"), "Fallback alpn")
@@ -325,7 +354,7 @@ o:depends({ [option_name("fallback")] = true })
 o = s:option(DynamicList, option_name("fallback_list"), "Fallback", translate("dest,path"))
 o:depends({ [option_name("fallback")] = true })
 
-o = s:option(Flag, option_name("bind_local"), translate("Bind Local"), translate("When selected, it can only be accessed locally, It is recommended to turn on when using reverse proxies or be fallback."))
+o = s:option(Flag, option_name("bind_local"), translate("Bind Local"), translate("When selected, it can only be accessed localhost."))
 o.default = "0"
 
 o = s:option(Flag, option_name("accept_lan"), translate("Accept LAN Access"), translate("When selected, it can accessed lan , this will not be safe!"))
@@ -345,7 +374,7 @@ o = s:option(ListValue, option_name("outbound_node"), translate("outbound node")
 o:value("nil", translate("Close"))
 o:value("_socks", translate("Custom Socks"))
 o:value("_http", translate("Custom HTTP"))
-o:value("_iface", translate("Custom Interface") .. " (Only Support Xray)")
+o:value("_iface", translate("Custom Interface"))
 for k, v in pairs(nodes_table) do o:value(v.id, v.remarks) end
 o.default = "nil"
 

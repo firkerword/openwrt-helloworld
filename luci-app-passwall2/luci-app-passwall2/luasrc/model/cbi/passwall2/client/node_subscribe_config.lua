@@ -1,22 +1,41 @@
 local api = require "luci.passwall2.api"
 local appname = api.appname
-local sys = api.sys
 local has_ss = api.is_finded("ss-redir")
 local has_ss_rust = api.is_finded("sslocal")
 local has_singbox = api.finded_com("singbox")
 local has_xray = api.finded_com("xray")
-local ss_aead_type = {}
+local has_hysteria2 = api.finded_com("hysteria")
+local ss_type = {}
+local trojan_type = {}
+local vmess_type = {}
+local vless_type = {}
+local hysteria2_type = {}
 if has_ss then
-	ss_aead_type[#ss_aead_type + 1] = "shadowsocks-libev"
+	local s = "shadowsocks-libev"
+	table.insert(ss_type, s)
 end
 if has_ss_rust then
-	ss_aead_type[#ss_aead_type + 1] = "shadowsocks-rust"
+	local s = "shadowsocks-rust"
+	table.insert(ss_type, s)
 end
 if has_singbox then
-	ss_aead_type[#ss_aead_type + 1] = "sing-box"
+	local s = "sing-box"
+	table.insert(trojan_type, s)
+	table.insert(ss_type, s)
+	table.insert(vmess_type, s)
+	table.insert(vless_type, s)
+	table.insert(hysteria2_type, s)
 end
 if has_xray then
-	ss_aead_type[#ss_aead_type + 1] = "xray"
+	local s = "xray"
+	table.insert(trojan_type, s)
+	table.insert(ss_type, s)
+	table.insert(vmess_type, s)
+	table.insert(vless_type, s)
+end
+if has_hysteria2 then
+	local s = "hysteria2"
+	table.insert(hysteria2_type, s)
 end
 
 m = Map(appname)
@@ -57,12 +76,48 @@ o:depends("filter_keyword_mode", "2")
 o:depends("filter_keyword_mode", "3")
 o:depends("filter_keyword_mode", "4")
 
-if #ss_aead_type > 0 then
-	o = s:option(ListValue, "ss_aead_type", translate("SS AEAD Node Use Type"))
+if #ss_type > 0 then
+	o = s:option(ListValue, "ss_type", translatef("%s Node Use Type", "Shadowsocks"))
 	o.default = "global"
 	o:value("global", translate("Use global config"))
-	for key, value in pairs(ss_aead_type) do
-		o:value(value, translate(value:gsub("^%l",string.upper)))
+	for key, value in pairs(ss_type) do
+		o:value(value)
+	end
+end
+
+if #trojan_type > 0 then
+	o = s:option(ListValue, "trojan_type", translatef("%s Node Use Type", "Trojan"))
+	o.default = "global"
+	o:value("global", translate("Use global config"))
+	for key, value in pairs(trojan_type) do
+		o:value(value)
+	end
+end
+
+if #vmess_type > 0 then
+	o = s:option(ListValue, "vmess_type", translatef("%s Node Use Type", "VMess"))
+	o.default = "global"
+	o:value("global", translate("Use global config"))
+	for key, value in pairs(vmess_type) do
+		o:value(value)
+	end
+end
+
+if #vless_type > 0 then
+	o = s:option(ListValue, "vless_type", translatef("%s Node Use Type", "VLESS"))
+	o.default = "global"
+	o:value("global", translate("Use global config"))
+	for key, value in pairs(vless_type) do
+		o:value(value)
+	end
+end
+
+if #hysteria2_type > 0 then
+	o = s:option(ListValue, "hysteria2_type", translatef("%s Node Use Type", "Hysteria2"))
+	o.default = "global"
+	o:value("global", translate("Use global config"))
+	for key, value in pairs(hysteria2_type) do
+		o:value(value)
 	end
 end
 
@@ -71,21 +126,48 @@ o = s:option(Flag, "auto_update", translate("Enable auto update subscribe"))
 o.default = 0
 o.rmempty = false
 
----- Week update rules
-o = s:option(ListValue, "week_update", translate("Week update rules"))
+---- Week Update
+o = s:option(ListValue, "week_update", translate("Update Mode"))
+o:value(8, translate("Loop Mode"))
 o:value(7, translate("Every day"))
-for e = 1, 6 do o:value(e, translate("Week") .. e) end
-o:value(0, translate("Week") .. translate("day"))
-o.default = 0
+o:value(1, translate("Every Monday"))
+o:value(2, translate("Every Tuesday"))
+o:value(3, translate("Every Wednesday"))
+o:value(4, translate("Every Thursday"))
+o:value(5, translate("Every Friday"))
+o:value(6, translate("Every Saturday"))
+o:value(0, translate("Every Sunday"))
+o.default = 7
 o:depends("auto_update", true)
+o.rmempty = true
 
----- Day update rules
-o = s:option(ListValue, "time_update", translate("Day update rules"))
-for e = 0, 23 do o:value(e, e .. translate("oclock")) end
+---- Time Update
+o = s:option(ListValue, "time_update", translate("Update Time(every day)"))
+for t = 0, 23 do o:value(t, t .. ":00") end
 o.default = 0
-o:depends("auto_update", true)
+o:depends("week_update", "0")
+o:depends("week_update", "1")
+o:depends("week_update", "2")
+o:depends("week_update", "3")
+o:depends("week_update", "4")
+o:depends("week_update", "5")
+o:depends("week_update", "6")
+o:depends("week_update", "7")
+o.rmempty = true
+
+---- Interval Update
+o = s:option(ListValue, "interval_update", translate("Update Interval(hour)"))
+for t = 1, 24 do o:value(t, t .. " " .. translate("hour")) end
+o.default = 2
+o:depends("week_update", "8")
+o.rmempty = true
 
 o = s:option(Value, "user_agent", translate("User-Agent"))
-o.default = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"
+o.default = "sing-box/9.9.9"
+o:value("curl", "Curl Default")
+o:value("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0", "Edge for Linux")
+o:value("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0", "Edge for Windows")
+o:value("Passwall2/OpenWrt", "PassWall2")
+o:value("sing-box/9.9.9", "Xboard(V2board)")
 
 return m

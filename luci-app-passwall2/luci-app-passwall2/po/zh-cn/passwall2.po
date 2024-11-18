@@ -91,6 +91,12 @@ msgstr "路由器本机代理"
 msgid "When selected, localhost can transparent proxy."
 msgstr "当勾选时，路由器本机可以透明代理。"
 
+msgid "Client Proxy"
+msgstr "客户端代理"
+
+msgid "When selected, devices in LAN can transparent proxy. Otherwise, it will not be proxy. But you can still use access control to allow the designated device to proxy."
+msgstr "当勾选时，局域网内的设备可以透明代理。否则，将不代理。但您仍然可以使用访问控制允许指定的设备代理。"
+
 msgid "Socks Config"
 msgstr "Socks配置"
 
@@ -160,8 +166,14 @@ msgstr "需要代理的分流规则域名使用 FakeDNS。"
 msgid "Domain Override"
 msgstr "域名重写"
 
-msgid "Clear IPSET"
-msgstr "清空 IPSET"
+msgid "Direct DNS result write to IPSet"
+msgstr "直连 DNS 解析结果写入到 IPSet"
+
+msgid "Perform the matching direct domain name rules into IP to IPSet/NFTSet, and then connect directly (not entering the core). Maybe conflict with some special circumstances."
+msgstr "将匹配到的直连规则的域名解析IP写入到 IPSet/NFTSet，然后直连（不进入内核）。可能和某些特殊情况冲突。"
+
+msgid "Clear IPSet"
+msgstr "清空 IPSet"
 
 msgid "Try this feature if the rule modification does not take effect."
 msgstr "如果修改规则后没有生效，请尝试此功能。"
@@ -256,8 +268,11 @@ msgstr "添加节点"
 msgid "Add the node via the link"
 msgstr "通过链接添加节点"
 
-msgid "SS/SSR/Vmess/VLESS/Trojan/Hysteria Link"
-msgstr "SS/SSR/Vmess/VLESS/Trojan/Hysteria 链接"
+msgid "Share Link"
+msgstr "分享链接"
+
+msgid "Not a subscription link!!!"
+msgstr "不是订阅链接！！！"
 
 msgid "Please enter the correct link."
 msgstr "请输入正确的链接。"
@@ -327,6 +342,9 @@ msgstr "负载均衡"
 
 msgid "Balancing Strategy"
 msgstr "负载均衡策略"
+
+msgid "Fallback Node"
+msgstr "后备节点"
 
 msgid "Use Custome Probe URL"
 msgstr "使用自定义探测网址"
@@ -403,6 +421,9 @@ msgstr "导入分享URL"
 msgid "Build Share URL"
 msgstr "导出分享URL"
 
+msgid "Generate QRCode"
+msgstr "生成二维码"
+
 msgid "Import Finished"
 msgstr "导入完成："
 
@@ -469,6 +490,12 @@ msgstr "认证密码"
 msgid "Commands the client to use the BBR flow control algorithm"
 msgstr "命令客户端使用 BBR 流量控制算法"
 
+msgid "PinSHA256"
+msgstr "PinSHA256"
+
+msgid "Certificate fingerprint"
+msgstr "证书指纹"
+
 msgid "Max upload Mbps"
 msgstr "最大上行(Mbps)"
 
@@ -499,23 +526,17 @@ msgstr "加密"
 msgid "Latency"
 msgstr "延迟"
 
-msgid "Show Add Mode"
-msgstr "显示添加方式"
-
-msgid "Show Group"
-msgstr "显示组"
-
-msgid "Group"
-msgstr "组"
-
-msgid "Auto Ping"
-msgstr "自动Ping"
+msgid "Automatic detection delay"
+msgstr "自动检测延迟"
 
 msgid "Show server address and port"
 msgstr "显示服务器地址和端口"
 
-msgid "Availability test"
-msgstr "可用性测试"
+msgid "URL Test"
+msgstr "URL 测试"
+
+msgid "Test"
+msgstr "测试"
 
 msgid "Node num"
 msgstr "节点数量"
@@ -619,12 +640,6 @@ msgstr "劫持ICMPv6 (IPv6 PING)"
 msgid "Sniffing"
 msgstr "流量嗅探"
 
-msgid "When using the shunt, must be enabled, otherwise the shunt will invalid."
-msgstr "使用分流时，必须启用，否则分流将无效。"
-
-msgid "Sniffing Route Only"
-msgstr "流量嗅探只供路由使用"
-
 msgid "TCP Proxy Way"
 msgstr "TCP代理方式"
 
@@ -706,8 +721,8 @@ msgstr "内置实现"
 msgid "Health Check Inter"
 msgstr "健康检查节点间隔时间"
 
-msgid "When the availability test is used, the load balancing node will be converted into a Socks node. when node list set customizing, must be a Socks node, otherwise the health check will be invalid."
-msgstr "当使用可用性测试时，负载均衡节点将转换成Socks节点。下面的节点列表自定义时必须为Socks节点，否则健康检查将无效。"
+msgid "When the URL test is used, the load balancing node will be converted into a Socks node. when node list set customizing, must be a Socks node, otherwise the health check will be invalid."
+msgstr "当使用URL测试时，负载均衡节点将转换成Socks节点。下面的节点列表自定义时必须为Socks节点，否则健康检查将无效。"
 
 msgid "Add a node, Export Of Multi WAN Only support Multi Wan. Load specific gravity range 1-256. Multiple primary servers can be load balanced, standby will only be enabled when the primary server is offline! Multiple groups can be set, Haproxy port same one for each group."
 msgstr "添加节点，指定出口功能是为多WAN用户准备的。负载比重范围1-256。多个主服务器可以负载均衡，备用只有在主服务器离线时才会启用！可以设置多个组，负载均衡端口相同则为一组。"
@@ -742,6 +757,9 @@ msgstr "备用"
 msgid "Check update"
 msgstr "检查更新"
 
+msgid "Force update"
+msgstr "强制更新"
+
 msgid "Enable custom URL"
 msgstr "启用自定义规则地址"
 
@@ -754,23 +772,44 @@ msgstr "手动更新"
 msgid "Enable auto update rules"
 msgstr "开启自动更新规则"
 
-msgid "Week update rules"
-msgstr "更新时间星期"
+msgid "Update Time(every day)"
+msgstr "更新时间(每天)"
 
-msgid "Day update rules"
-msgstr "更新时间小时"
+msgid "Update Interval(hour)"
+msgstr "更新间隔(小时)"
+
+msgid "Update Mode"
+msgstr "更新模式"
+
+msgid "Loop Mode"
+msgstr "循环"
 
 msgid "Every day"
 msgstr "每天"
 
-msgid "day"
-msgstr "日"
+msgid "Every Monday"
+msgstr "每周一"
 
-msgid "Week"
-msgstr "周"
+msgid "Every Tuesday"
+msgstr "每周二"
 
-msgid "oclock"
-msgstr "点"
+msgid "Every Wednesday"
+msgstr "每周三"
+
+msgid "Every Thursday"
+msgstr "每周四"
+
+msgid "Every Friday"
+msgstr "每周五"
+
+msgid "Every Saturday"
+msgstr "每周六"
+
+msgid "Every Sunday"
+msgstr "每周日"
+
+msgid "hour"
+msgstr "小时"
 
 msgid "Location of V2ray/Xray asset"
 msgstr "V2ray/Xray 资源文件目录"
@@ -798,6 +837,9 @@ msgstr "点击更新"
 
 msgid "Updating..."
 msgstr "更新中"
+
+msgid "Retry"
+msgstr "重试"
 
 msgid "Unexpected error"
 msgstr "意外错误"
@@ -834,12 +876,6 @@ msgstr "%s 程序路径"
 
 msgid "%s Client App Path"
 msgstr "%s 客户端程序路径"
-
-msgid "Trojan-Go Version API"
-msgstr "Trojan-Go 版本 API"
-
-msgid "alternate API URL for version checking"
-msgstr "用于版本检查的 API URL"
 
 msgid "Node Subscribe"
 msgstr "节点订阅"
@@ -910,6 +946,12 @@ msgstr "例："
 msgid "IP range"
 msgstr "IP 范围"
 
+msgid "Source Interface"
+msgstr "源接口"
+
+msgid "Use Interface With ACLs"
+msgstr "使用接口控制"
+
 msgid "Remarks"
 msgstr "备注"
 
@@ -955,6 +997,12 @@ msgstr "配置路由etc/hosts文件，如果你不知道自己在做什么，请
 msgid "These had been joined ip addresses will be block. Please input the ip address or ip address segment, every line can input only one ip address."
 msgstr "加入的IP段将屏蔽。可输入IP地址或地址段，每个地址段一行。"
 
+msgid "Inbound Tag"
+msgstr "入站标签"
+
+msgid "Transparent proxy"
+msgstr "透明代理"
+
 msgid "Not valid domain name, please re-enter!"
 msgstr "不是有效域名，请重新输入！"
 
@@ -985,8 +1033,8 @@ msgstr "完整匹配: 由'full:'开始，余下部分是一个域名。当此域
 msgid "Pre-defined domain list: Begining with 'geosite:' and the rest is a name, such as geosite:google or geosite:cn."
 msgstr "预定义域名列表：由'geosite:'开头，余下部分是一个名称，如geosite:google或者geosite:cn。"
 
-msgid "Domains from file: Such as 'ext:file:tag'. The value must begin with ext: (lowercase), and followed by filename and tag. The file is placed in resource directory, and has the same format of geosite.dat. The tag must exist in the file."
-msgstr "从文件中加载域名: 形如'ext:file:tag'，必须以ext:（小写）开头，后面跟文件名和标签，文件存放在资源目录中，文件格式与geosite.dat相同，标签必须在文件中存在。"
+msgid "Annotation: Begining with #"
+msgstr "注释: 由 # 开头"
 
 msgid "IP: such as '127.0.0.1'."
 msgstr "IP: 形如'127.0.0.1'。"
@@ -996,9 +1044,6 @@ msgstr "CIDR: 形如'10.0.0.0/8'."
 
 msgid "GeoIP: such as 'geoip:cn'. It begins with geoip: (lower case) and followed by two letter of country code."
 msgstr "GeoIP: 形如'geoip:cn'，必须以geoip:（小写）开头，后面跟双字符国家代码，支持几乎所有可以上网的国家。"
-
-msgid "IPs from file: Such as 'ext:file:tag'. The value must begin with ext: (lowercase), and followed by filename and tag. The file is placed in resource directory, and has the same format of geoip.dat. The tag must exist in the file."
-msgstr "从文件中加载 IP: 形如'ext:file:tag'，必须以ext:（小写）开头，后面跟文件名和标签，文件存放在资源目录中，文件格式与geoip.dat相同标签必须在文件中存在。"
 
 msgid "Clear logs"
 msgstr "清空日志"
@@ -1011,9 +1056,6 @@ msgstr "IV 检查"
 
 msgid "UDP over TCP"
 msgstr "TCP 封装 UDP"
-
-msgid "Need Xray-core or sing-box as server side."
-msgstr "需要 Xray-core 或者 sing-box 作为服务器端。"
 
 msgid "Connection Timeout"
 msgstr "连接超时时间"
@@ -1048,12 +1090,6 @@ msgstr "插件名称"
 msgid "Plugin Arguments"
 msgstr "插件参数"
 
-msgid "Brook Protocol"
-msgstr "Brook协议"
-
-msgid "Use TLS"
-msgstr "使用TLS"
-
 msgid "Naiveproxy Protocol"
 msgstr "Naiveproxy协议"
 
@@ -1074,6 +1110,12 @@ msgstr "额外的对称加密密钥"
 
 msgid "Local Address"
 msgstr "本地地址"
+
+msgid "System interface"
+msgstr "系统接口"
+
+msgid "System interface name"
+msgstr "系统接口名称"
 
 msgid "Decimal numbers separated by \",\" or Base64-encoded strings."
 msgstr "用“,”隔开的十进制数字或 Base64 编码字符串。"
@@ -1102,11 +1144,8 @@ msgstr "允许不安全连接"
 msgid "Whether unsafe connections are allowed. When checked, Certificate validation will be skipped."
 msgstr "是否允许不安全连接。当勾选时，将跳过证书验证。"
 
-msgid "SS AEAD Node Use Type"
-msgstr "SS AEAD节点使用类型"
-
-msgid "Trojan Node Use Type"
-msgstr "Trojan节点使用类型"
+msgid "%s Node Use Type"
+msgstr "%s 节点使用类型"
 
 msgid "Set the TUIC proxy server ip address"
 msgstr "指定远程TUIC服务器IP"
@@ -1231,8 +1270,8 @@ msgstr "接口"
 msgid "Bind Local"
 msgstr "本机监听"
 
-msgid "When selected, it can only be accessed locally, It is recommended to turn on when using reverse proxies or be fallback."
-msgstr "当勾选时，只能由本机访问此端口，当想被反向代理或被回落时建议勾选此项。"
+msgid "When selected, it can only be accessed localhost."
+msgstr "当勾选时，只能本机访问。"
 
 msgid "Accept LAN Access"
 msgstr "接受局域网访问"
@@ -1282,8 +1321,8 @@ msgstr "日志"
 msgid "Log"
 msgstr "日志"
 
-msgid "Close Node Log"
-msgstr "关闭节点日志"
+msgid "Enable Node Log"
+msgstr "启用节点日志"
 
 msgid "Log Level"
 msgstr "日志等级"
@@ -1339,6 +1378,30 @@ msgstr "客户端文件不适合当前设备。"
 msgid "Can't move new file to path: %s"
 msgstr "无法移动新文件到：%s"
 
+msgid "XHTTP download splitting"
+msgstr "XHTTP 下行分离"
+
+msgid "Must be the same as upload path."
+msgstr "必须与上行 path 相同。"
+
+msgid "Enable XHTTP XMUX. It's not recommended to enable Mux.Cool at the same time."
+msgstr "启用 XHTTP XMUX。不建议与 Mux.Cool 同时启用。"
+
+msgid "XMUX Max Concurrency"
+msgstr "XMUX 连接最大复用流数"
+
+msgid "XMUX Max Connections"
+msgstr "XMUX 最大连接数"
+
+msgid "XMUX Connection Max Reuse Times"
+msgstr "XMUX 连接最多复用次数"
+
+msgid "XMUX Connection Max Lifetime (ms)"
+msgstr "XMUX 连接最大存活时间（ms）"
+
+msgid "Enable Mux.Cool"
+msgstr "启用 Mux.Cool"
+
 msgid "Mux concurrency"
 msgstr "最大并发连接数"
 
@@ -1378,11 +1441,11 @@ msgstr "无子连接时的健康检查"
 msgid "Initial Windows Size"
 msgstr "初始窗口大小"
 
-msgid "No Sniffing Lists"
-msgstr "不进行流量嗅探的域名列表"
+msgid "Excluded Domains"
+msgstr "排除域名"
 
-msgid "Hosts added into No Sniffing Lists will not resolve again on server."
-msgstr "加入的域名不会再次在服务器解析。"
+msgid "If the traffic sniffing result is in this list, the destination address will not be overridden."
+msgstr "如果流量嗅探结果在此列表中，则不会覆盖目标地址。"
 
 msgid "Buffer Size"
 msgstr "缓冲区大小"
@@ -1414,6 +1477,12 @@ msgstr "端口跳跃时间 "
 msgid "Additional ports for hysteria hop"
 msgstr "端口跳跃额外端口"
 
+msgid "Remove resource files"
+msgstr "删除资源文件"
+
+msgid "Sing-Box will automatically download resource files when starting, you can use this feature achieve upgrade resource files."
+msgstr "Sing-Box 会在启动时自动下载资源文件，您可以使用此功能实现升级资源文件。"
+
 msgid "Override the connection destination address"
 msgstr "覆盖连接目标地址"
 
@@ -1443,3 +1512,57 @@ msgstr "后量子对等证书签名方案"
 
 msgid "Disable adaptive sizing of TLS records"
 msgstr "禁用 TLS 记录的自适应大小调整"
+
+msgid "Enable Multipath TCP, need to be enabled in both server and client configuration."
+msgstr "启用 Multipath TCP，需在服务端和客户端配置中同时启用。"
+
+msgid "Fragment"
+msgstr "分片"
+
+msgid "TCP fragments, which can deceive the censorship system in some cases, such as bypassing SNI blacklists."
+msgstr "TCP 分片，在某些情况下可以欺骗审查系统，比如绕过 SNI 黑名单。"
+
+msgid "Fragment Packets"
+msgstr "分片方式"
+
+msgid " \"1-3\" is for segmentation at TCP layer, applying to the beginning 1 to 3 data writes by the client. \"tlshello\" is for TLS client hello packet fragmentation."
+msgstr " \"1-3\" 是 TCP 的流切片，应用于客户端第 1 至第 3 次写数据。\"tlshello\" 是 TLS 握手包切片。"
+
+msgid "Fragment Length"
+msgstr "分片包长"
+
+msgid "Fragmented packet length (byte)"
+msgstr "分片包长 (byte)"
+
+msgid "Fragment Interval"
+msgstr "分片间隔"
+
+msgid "Fragmentation interval (ms)"
+msgstr "分片间隔（ms）"
+
+msgid "Noise"
+msgstr "噪声"
+
+msgid "UDP noise, Under some circumstances it can bypass some UDP based protocol restrictions."
+msgstr "UDP 噪声，在某些情况下可以绕过一些针对 UDP 协议的限制。"
+
+msgid "To send noise packets, select \"Noise\" in Xray Settings."
+msgstr "在 Xray 设置中勾选 “噪声” 以发送噪声包。"
+
+msgid "Xray Noise Packets"
+msgstr "Xray 噪声数据包"
+
+msgid "Packet"
+msgstr "数据包"
+
+msgid "Delay (ms)"
+msgstr "延迟（ms）"
+
+msgid "If is domain name, The requested domain name will be resolved to IP before connect."
+msgstr "如果是域名，域名将在请求发出之前解析为 IP。"
+
+msgid "Landing node"
+msgstr "落地节点"
+
+msgid "Only support a layer of proxy."
+msgstr "仅支持一层代理。"

@@ -1,10 +1,10 @@
 local api = require "luci.passwall.api"
-local appname = api.appname
+local appname = "passwall"
 local uci = api.uci
+local has_singbox = api.finded_com("singbox")
 local has_xray = api.finded_com("xray")
 
 m = Map(appname)
-api.set_apply_on_parse(m)
 
 local nodes_table = {}
 for k, e in ipairs(api.get_valid_nodes()) do
@@ -41,6 +41,9 @@ if auto_switch_tip then
 	socks_node.description = auto_switch_tip
 end
 
+o = s:option(Flag, "bind_local", translate("Bind Local"), translate("When selected, it can only be accessed localhost."))
+o.default = "0"
+
 local n = 1
 uci:foreach(appname, "socks", function(s)
 	if s[".name"] == section then
@@ -54,11 +57,15 @@ o.default = n + 1080
 o.datatype = "port"
 o.rmempty = false
 
-if has_xray then
+if has_singbox or has_xray then
 	o = s:option(Value, "http_port", "HTTP " .. translate("Listen Port") .. " " .. translate("0 is not use"))
 	o.default = 0
 	o.datatype = "port"
 end
+
+o = s:option(Flag, "log", translate("Enable") .. " " .. translate("Log"))
+o.default = 1
+o.rmempty = false
 
 o = s:option(Flag, "enable_autoswitch", translate("Auto Switch"))
 o.default = 0
@@ -105,13 +112,17 @@ o:depends("enable_autoswitch", true)
 
 o = s:option(Value, "autoswitch_probe_url", translate("Probe URL"), translate("The URL used to detect the connection status."))
 o.default = "https://www.google.com/generate_204"
+o:value("https://cp.cloudflare.com/", "Cloudflare")
+o:value("https://www.gstatic.com/generate_204", "Gstatic")
+o:value("https://www.google.com/generate_204", "Google")
+o:value("https://www.youtube.com/generate_204", "YouTube")
+o:value("https://connect.rom.miui.com/generate_204", "MIUI (CN)")
+o:value("https://connectivitycheck.platform.hicloud.com/generate_204", "HiCloud (CN)")
 o:depends("enable_autoswitch", true)
 
 for k, v in pairs(nodes_table) do
-	if v.node_type == "normal" then
-		autoswitch_backup_node:value(v.id, v["remark"])
-		socks_node:value(v.id, v["remark"])
-	end
+	autoswitch_backup_node:value(v.id, v["remark"])
+	socks_node:value(v.id, v["remark"])
 end
 
 m:append(Template(appname .. "/socks_auto_switch/footer"))

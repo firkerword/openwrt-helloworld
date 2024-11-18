@@ -1,13 +1,14 @@
 local api = require "luci.passwall.api"
-local appname = api.appname
+local appname = "passwall"
 local fs = api.fs
 local sys = api.sys
 local datatypes = api.datatypes
 local path = string.format("/usr/share/%s/rules/", appname)
-local route_hosts_path = "/etc/"
+local gfwlist_path = "/usr/share/passwall/rules/gfwlist"
+local chnlist_path = "/usr/share/passwall/rules/chnlist"
+local chnroute_path = "/usr/share/passwall/rules/chnroute"
 
 m = Map(appname)
-api.set_apply_on_parse(m)
 
 -- [[ Rule List Settings ]]--
 s = m:section(TypedSection, "global_rules")
@@ -37,9 +38,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local hosts= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(hosts, w) end)
 	for index, host in ipairs(hosts) do
-		if host:find("#") and host:find("#") == 1 then
+		if host:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.hostname(host) then
@@ -65,9 +67,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not ( datatypes.ipmask4(ipmask) or datatypes.ipmask6(ipmask) ) then
@@ -95,9 +98,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local hosts= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(hosts, w) end)
 	for index, host in ipairs(hosts) do
-		if host:find("#") and host:find("#") == 1  then
+		if host:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.hostname(host) then
@@ -123,9 +127,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not ( datatypes.ipmask4(ipmask) or datatypes.ipmask6(ipmask) ) then
@@ -151,9 +156,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local hosts= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(hosts, w) end)
 	for index, host in ipairs(hosts) do
-		if host:find("#") and host:find("#") == 1 then
+		if host:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.hostname(host) then
@@ -179,9 +185,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not ( datatypes.ipmask4(ipmask) or datatypes.ipmask6(ipmask) ) then
@@ -207,9 +214,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.ipmask4(ipmask) then
@@ -235,9 +243,10 @@ o.remove = function(self, section, value)
 end
 o.validate = function(self, value)
 	local ipmasks= {}
+	value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
 	string.gsub(value, '[^' .. "\r\n" .. ']+', function(w) table.insert(ipmasks, w) end)
 	for index, ipmask in ipairs(ipmasks) do
-		if ipmask:find("#") and ipmask:find("#") == 1 then
+		if ipmask:sub(1, 1) == "#" then
 			return value
 		end
 		if not datatypes.ipmask6(ipmask) then
@@ -248,7 +257,7 @@ o.validate = function(self, value)
 end
 
 ---- Route Hosts
-local hosts = route_hosts_path .. "hosts"
+local hosts = "/etc/hosts"
 o = s:taboption("route_hosts", TextValue, "hosts", "", "<font color='red'>" .. translate("Configure routing etc/hosts file, if you don't know what you are doing, please don't change the content.") .. "</font>")
 o.rows = 15
 o.wrap = "off"
@@ -256,17 +265,56 @@ o.cfgvalue = function(self, section)
 	return fs.readfile(hosts) or ""
 end
 o.write = function(self, section, value)
-	fs.writefile(hosts, value:gsub("\r\n", "\n"))
+	fs.writefile(hosts, value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n"))
 end
 o.remove = function(self, section, value)
 	fs.writefile(hosts, "")
 end
+
+if api.fs.access(gfwlist_path) then
+	s:tab("gfw_list", translate("GFW List"))
+	o = s:taboption("gfw_list", TextValue, "gfw_list", "")
+	o.readonly = true
+	o.rows = 45
+	o.wrap = "off"
+	o.cfgvalue = function(self, section)
+		return fs.readfile(gfwlist_path) or ""
+	end
+end
+
+if api.fs.access(chnlist_path) then
+	s:tab("chn_list", translate("China List") .. "(" .. translate("Domain") .. ")")
+	o = s:taboption("chn_list", TextValue, "chn_list", "")
+	o.readonly = true
+	o.rows = 45
+	o.wrap = "off"
+	o.cfgvalue = function(self, section)
+		return fs.readfile(chnlist_path) or ""
+	end
+end
+
+if api.fs.access(chnroute_path) then
+	s:tab("chnroute_list", translate("China List") .. "(IP)")
+	o = s:taboption("chnroute_list", TextValue, "chnroute_list", "")
+	o.readonly = true
+	o.rows = 45
+	o.wrap = "off"
+	o.cfgvalue = function(self, section)
+		return fs.readfile(chnroute_path) or ""
+	end
+end
+
+m:append(Template(appname .. "/rule_list/js"))
 
 if sys.call('[ -f "/www/luci-static/resources/uci.js" ]') == 0 then
 	m.apply_on_parse = true
 	function m.on_apply(self)
 		luci.sys.call("/etc/init.d/passwall reload > /dev/null 2>&1 &")
 	end
+end
+
+function m.on_commit(self)
+	luci.sys.call('[ -n "$(nft list sets 2>/dev/null | grep \"passwall_\")" ] && sh /usr/share/passwall/nftables.sh flush_nftset || sh /usr/share/passwall/iptables.sh flush_ipset > /dev/null 2>&1 &')
 end
 
 return m

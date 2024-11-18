@@ -3,24 +3,32 @@
 
 module("luci.controller.passwall", package.seeall)
 local api = require "luci.passwall.api"
-local appname = api.appname
-local ucic = luci.model.uci.cursor()
+local appname = "passwall"			-- not available
+local uci = luci.model.uci.cursor()		-- in funtion index()
 local http = require "luci.http"
 local util = require "luci.util"
 local i18n = require "luci.i18n"
 
 function index()
-	appname = require "luci.passwall.api".appname
+	if not nixio.fs.access("/etc/config/passwall") then
+		if nixio.fs.access("/usr/share/passwall/0_default_config") then
+			luci.sys.call('cp -f /usr/share/passwall/0_default_config /etc/config/passwall')
+		else return end
+	end
+	local appname = "passwall"			-- global definitions not available
+	local uci = luci.model.uci.cursor()		-- in function index()
 	entry({"admin", "services", appname}).dependent = true
 	entry({"admin", "services", appname, "reset_config"}, call("reset_config")).leaf = true
 	entry({"admin", "services", appname, "show"}, call("show_menu")).leaf = true
 	entry({"admin", "services", appname, "hide"}, call("hide_menu")).leaf = true
-	if not nixio.fs.access("/etc/config/passwall") then return end
-	if nixio.fs.access("/etc/config/passwall_show") then
+	local e
+	if uci:get(appname, "@global[0]", "hide_from_luci") ~= "1" then
 		e = entry({"admin", "services", appname}, alias("admin", "services", appname, "settings"), _("Pass Wall"), -1)
-		e.dependent = true
-		e.acl_depends = { "luci-app-passwall" }
+	else
+		e = entry({"admin", "services", appname}, alias("admin", "services", appname, "settings"), nil, -1)
 	end
+	e.dependent = true
+	e.acl_depends = { "luci-app-passwall" }
 	--[[ Client ]]
 	entry({"admin", "services", appname, "settings"}, cbi(appname .. "/client/global"), _("Basic Settings"), 1).dependent = true
 	entry({"admin", "services", appname, "node_list"}, cbi(appname .. "/client/node_list"), _("Node List"), 2).dependent = true
@@ -54,9 +62,10 @@ function index()
 	entry({"admin", "services", appname, "socks_autoswitch_remove_node"}, call("socks_autoswitch_remove_node")).leaf = true
 	entry({"admin", "services", appname, "get_now_use_node"}, call("get_now_use_node")).leaf = true
 	entry({"admin", "services", appname, "get_redir_log"}, call("get_redir_log")).leaf = true
+	entry({"admin", "services", appname, "get_socks_log"}, call("get_socks_log")).leaf = true
 	entry({"admin", "services", appname, "get_log"}, call("get_log")).leaf = true
 	entry({"admin", "services", appname, "clear_log"}, call("clear_log")).leaf = true
-	entry({"admin", "services", appname, "status"}, call("status")).leaf = true
+	entry({"admin", "services", appname, "index_status"}, call("index_status")).leaf = true
 	entry({"admin", "services", appname, "haproxy_status"}, call("haproxy_status")).leaf = true
 	entry({"admin", "services", appname, "socks_status"}, call("socks_status")).leaf = true
 	entry({"admin", "services", appname, "connect_status"}, call("connect_status")).leaf = true
@@ -90,14 +99,16 @@ function reset_config()
 end
 
 function show_menu()
-	luci.sys.call("touch /etc/config/passwall_show")
+	uci:delete(appname, "@global[0]", "hide_from_luci")
+	uci:commit(appname)
 	luci.sys.call("rm -rf /tmp/luci-*")
 	luci.sys.call("/etc/init.d/rpcd restart >/dev/null")
 	luci.http.redirect(api.url())
 end
 
 function hide_menu()
-	luci.sys.call("rm -rf /etc/config/passwall_show")
+	uci:set(appname, "@global[0]", "hide_from_luci","1")
+	uci:commit(appname)
 	luci.sys.call("rm -rf /tmp/luci-*")
 	luci.sys.call("/etc/init.d/rpcd restart >/dev/null")
 	luci.http.redirect(luci.dispatcher.build_url("admin", "status", "overview"))
@@ -114,9 +125,9 @@ function socks_autoswitch_add_node()
 	local id = luci.http.formvalue("id")
 	local key = luci.http.formvalue("key")
 	if id and id ~= "" and key and key ~= "" then
-		local new_list = ucic:get(appname, id, "autoswitch_backup_node") or {}
+		local new_list = uci:get(appname, id, "autoswitch_backup_node") or {}
 		for i = #new_list, 1, -1 do
-			if (ucic:get(appname, new_list[i], "remarks") or ""):find(key) then
+			if (uci:get(appname, new_list[i], "remarks") or ""):find(key) then
 				table.remove(new_list, i)
 			end
 		end
@@ -125,8 +136,8 @@ function socks_autoswitch_add_node()
 				table.insert(new_list, e.id)
 			end
 		end
-		ucic:set_list(appname, id, "autoswitch_backup_node", new_list)
-		ucic:commit(appname)
+		uci:set_list(appname, id, "autoswitch_backup_node", new_list)
+		uci:commit(appname)
 	end
 	luci.http.redirect(api.url("socks_config", id))
 end
@@ -135,25 +146,26 @@ function socks_autoswitch_remove_node()
 	local id = luci.http.formvalue("id")
 	local key = luci.http.formvalue("key")
 	if id and id ~= "" and key and key ~= "" then
-		local new_list = ucic:get(appname, id, "autoswitch_backup_node") or {}
+		local new_list = uci:get(appname, id, "autoswitch_backup_node") or {}
 		for i = #new_list, 1, -1 do
-			if (ucic:get(appname, new_list[i], "remarks") or ""):find(key) then
+			if (uci:get(appname, new_list[i], "remarks") or ""):find(key) then
 				table.remove(new_list, i)
 			end
 		end
-		ucic:set_list(appname, id, "autoswitch_backup_node", new_list)
-		ucic:commit(appname)
+		uci:set_list(appname, id, "autoswitch_backup_node", new_list)
+		uci:commit(appname)
 	end
 	luci.http.redirect(api.url("socks_config", id))
 end
 
 function get_now_use_node()
+	local path = "/tmp/etc/passwall/acl/default"
 	local e = {}
-	local data, code, msg = nixio.fs.readfile("/tmp/etc/passwall/id/TCP")
+	local data, code, msg = nixio.fs.readfile(path .. "/TCP.id")
 	if data then
 		e["TCP"] = util.trim(data)
 	end
-	local data, code, msg = nixio.fs.readfile("/tmp/etc/passwall/id/UDP")
+	local data, code, msg = nixio.fs.readfile(path .. "/UDP.id")
 	if data then
 		e["UDP"] = util.trim(data)
 	end
@@ -162,13 +174,27 @@ function get_now_use_node()
 end
 
 function get_redir_log()
+	local name = luci.http.formvalue("name")
 	local proto = luci.http.formvalue("proto")
+	local path = "/tmp/etc/passwall/acl/" .. name
 	proto = proto:upper()
-	if proto == "UDP" and (ucic:get(appname, "@global[0]", "udp_node") or "nil") == "tcp" and not nixio.fs.access("/tmp/etc/passwall/" .. proto .. ".log") then
+	if proto == "UDP" and (uci:get(appname, "@global[0]", "udp_node") or "nil") == "tcp" and not nixio.fs.access(path .. "/" .. proto .. ".log") then
 		proto = "TCP"
 	end
-	if nixio.fs.access("/tmp/etc/passwall/" .. proto .. ".log") then
-		local content = luci.sys.exec("cat /tmp/etc/passwall/" .. proto .. ".log")
+	if nixio.fs.access(path .. "/" .. proto .. ".log") then
+		local content = luci.sys.exec("cat ".. path .. "/" .. proto .. ".log")
+		content = content:gsub("\n", "<br />")
+		luci.http.write(content)
+	else
+		luci.http.write(string.format("<script>alert('%s');window.close();</script>", i18n.translate("Not enabled log")))
+	end
+end
+
+function get_socks_log()
+	local name = luci.http.formvalue("name")
+	local path = "/tmp/etc/passwall/SOCKS_" .. name .. ".log"
+	if nixio.fs.access(path) then
+		local content = luci.sys.exec("cat ".. path)
 		content = content:gsub("\n", "<br />")
 		luci.http.write(content)
 	else
@@ -185,24 +211,23 @@ function clear_log()
 	luci.sys.call("echo '' > /tmp/log/passwall.log")
 end
 
-function status()
-	-- local dns_mode = ucic:get(appname, "@global[0]", "dns_mode")
+function index_status()
 	local e = {}
 	e.dns_mode_status = luci.sys.call("netstat -apn | grep ':15353 ' >/dev/null") == 0
-	e.haproxy_status = luci.sys.call(string.format("top -bn1 | grep -v grep | grep '%s/bin/' | grep haproxy >/dev/null", appname)) == 0
-	e["tcp_node_status"] = luci.sys.call(string.format("top -bn1 | grep -v -E 'grep|acl/|acl_' | grep '%s/bin/' | grep -i 'TCP' >/dev/null", appname)) == 0
+	e.haproxy_status = luci.sys.call(string.format("/bin/busybox top -bn1 | grep -v grep | grep '%s/bin/' | grep haproxy >/dev/null", appname)) == 0
+	e["tcp_node_status"] = luci.sys.call("/bin/busybox top -bn1 | grep -v 'grep' | grep '/tmp/etc/passwall/bin/' | grep 'default' | grep 'TCP' >/dev/null") == 0
 
-	if (ucic:get(appname, "@global[0]", "udp_node") or "nil") == "tcp" then
+	if (uci:get(appname, "@global[0]", "udp_node") or "nil") == "tcp" then
 		e["udp_node_status"] = e["tcp_node_status"]
 	else
-		e["udp_node_status"] = luci.sys.call(string.format("top -bn1 | grep -v -E 'grep|acl/|acl_' | grep '%s/bin/' | grep -i 'UDP' >/dev/null", appname)) == 0
+		e["udp_node_status"] = luci.sys.call("/bin/busybox top -bn1 | grep -v 'grep' | grep '/tmp/etc/passwall/bin/' | grep 'default' | grep 'UDP' >/dev/null") == 0
 	end
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(e)
 end
 
 function haproxy_status()
-	local e = luci.sys.call(string.format("top -bn1 | grep -v grep | grep '%s/bin/' | grep haproxy >/dev/null", appname)) == 0
+	local e = luci.sys.call(string.format("/bin/busybox top -bn1 | grep -v grep | grep '%s/bin/' | grep haproxy >/dev/null", appname)) == 0
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(e)
 end
@@ -212,12 +237,12 @@ function socks_status()
 	local index = luci.http.formvalue("index")
 	local id = luci.http.formvalue("id")
 	e.index = index
-	e.socks_status = luci.sys.call(string.format("top -bn1 | grep -v -E 'grep|acl/|acl_' | grep '%s/bin/' | grep '%s' | grep 'SOCKS_' > /dev/null", appname, id)) == 0
-	local use_http = ucic:get(appname, id, "http_port") or 0
+	e.socks_status = luci.sys.call(string.format("/bin/busybox top -bn1 | grep -v 'grep' | grep '/tmp/etc/passwall/bin/' | grep -v '_acl_' | grep '%s' | grep 'SOCKS_' > /dev/null", id)) == 0
+	local use_http = uci:get(appname, id, "http_port") or 0
 	e.use_http = 0
 	if tonumber(use_http) > 0 then
 		e.use_http = 1
-		e.http_status = luci.sys.call(string.format("top -bn1 | grep -v -E 'grep|acl/|acl_' | grep '%s/bin/' | grep '%s' | grep -E 'HTTP_|HTTP2SOCKS' > /dev/null", appname, id)) == 0
+		e.http_status = luci.sys.call(string.format("/bin/busybox top -bn1 | grep -v 'grep' | grep '/tmp/etc/passwall/bin/' | grep -v '_acl_' | grep '%s' | grep -E 'HTTP_|HTTP2SOCKS' > /dev/null", id)) == 0
 	end
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(e)
@@ -227,7 +252,23 @@ function connect_status()
 	local e = {}
 	e.use_time = ""
 	local url = luci.http.formvalue("url")
-	local result = luci.sys.exec('curl --connect-timeout 3 -o /dev/null -I -sk -w "%{http_code}:%{time_starttransfer}" ' .. url)
+	local baidu = string.find(url, "baidu")
+	local enabled = uci:get(appname, "@global[0]", "enabled") or "0"
+	local chn_list = uci:get(appname, "@global[0]", "chn_list") or "direct"
+	local gfw_list = uci:get(appname, "@global[0]", "use_gfw_list") or "1"
+	local proxy_mode = uci:get(appname, "@global[0]", "tcp_proxy_mode") or "proxy"
+	local socks_port = uci:get(appname, "@global[0]", "tcp_node_socks_port") or "1070"
+	local local_proxy = uci:get(appname, "@global[0]", "localhost_proxy") or "1"
+	if enabled == "1" and local_proxy == "0" then
+		if (chn_list == "proxy" and gfw_list == "0" and proxy_mode ~= "proxy" and baidu ~= nil) or (chn_list == "0" and gfw_list == "0" and proxy_mode == "proxy") then
+		-- 中国列表+百度 or 全局
+			url = "-x socks5h://127.0.0.1:" .. socks_port .. " " .. url
+		elseif baidu == nil then
+		-- 其他代理模式+百度以外网站
+			url = "-x socks5h://127.0.0.1:" .. socks_port .. " " .. url
+		end
+	end
+	local result = luci.sys.exec('curl --connect-timeout 3 -o /dev/null -I -sk -w "%{http_code}:%{time_appconnect}" ' .. url)
 	local code = tonumber(luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $1}'") or "0")
 	if code ~= 0 then
 		local use_time = luci.sys.exec("echo -n '" .. result .. "' | awk -F ':' '{print $2}'")
@@ -246,16 +287,15 @@ function ping_node()
 	local index = luci.http.formvalue("index")
 	local address = luci.http.formvalue("address")
 	local port = luci.http.formvalue("port")
+	local type = luci.http.formvalue("type") or "icmp"
 	local e = {}
 	e.index = index
-	local nodes_ping = ucic:get(appname, "@global_other[0]", "nodes_ping") or ""
-	if nodes_ping:find("tcping") and luci.sys.exec("echo -n $(command -v tcping)") ~= "" then
+	if type == "tcping" and luci.sys.exec("echo -n $(command -v tcping)") ~= "" then
 		if api.is_ipv6(address) then
 			address = api.get_ipv6_only(address)
 		end
 		e.ping = luci.sys.exec(string.format("echo -n $(tcping -q -c 1 -i 1 -t 2 -p %s %s 2>&1 | grep -o 'time=[0-9]*' | awk -F '=' '{print $2}') 2>/dev/null", port, address))
-	end
-	if e.ping == nil or tonumber(e.ping) == 0 then
+	else
 		e.ping = luci.sys.exec("echo -n $(ping -c 1 -W 1 %q 2>&1 | grep -o 'time=[0-9]*' | awk -F '=' '{print $2}') 2>/dev/null" % address)
 	end
 	luci.http.prepare_content("application/json")
@@ -284,8 +324,8 @@ end
 function set_node()
 	local protocol = luci.http.formvalue("protocol")
 	local section = luci.http.formvalue("section")
-	ucic:set(appname, "@global[0]", protocol .. "_node", section)
-	ucic:commit(appname)
+	uci:set(appname, "@global[0]", protocol .. "_node", section)
+	uci:commit(appname)
 	luci.sys.call("/etc/init.d/passwall restart > /dev/null 2>&1 &")
 	luci.http.redirect(api.url("log"))
 end
@@ -293,84 +333,84 @@ end
 function copy_node()
 	local section = luci.http.formvalue("section")
 	local uuid = api.gen_short_uuid()
-	ucic:section(appname, "nodes", uuid)
-	for k, v in pairs(ucic:get_all(appname, section)) do
+	uci:section(appname, "nodes", uuid)
+	for k, v in pairs(uci:get_all(appname, section)) do
 		local filter = k:find("%.")
 		if filter and filter == 1 then
 		else
 			xpcall(function()
-				ucic:set(appname, uuid, k, v)
+				uci:set(appname, uuid, k, v)
 			end,
 			function(e)
 			end)
 		end
 	end
-	ucic:delete(appname, uuid, "add_from")
-	ucic:set(appname, uuid, "add_mode", 1)
-	ucic:commit(appname)
+	uci:delete(appname, uuid, "add_from")
+	uci:set(appname, uuid, "add_mode", 1)
+	uci:commit(appname)
 	luci.http.redirect(api.url("node_config", uuid))
 end
 
 function clear_all_nodes()
-	ucic:set(appname, '@global[0]', "enabled", "0")
-	ucic:set(appname, '@global[0]', "tcp_node", "nil")
-	ucic:set(appname, '@global[0]', "udp_node", "nil")
-	ucic:foreach(appname, "socks", function(t)
-		ucic:delete(appname, t[".name"])
-		ucic:set_list(appname, t[".name"], "autoswitch_backup_node", {})
+	uci:set(appname, '@global[0]', "enabled", "0")
+	uci:set(appname, '@global[0]', "tcp_node", "nil")
+	uci:set(appname, '@global[0]', "udp_node", "nil")
+	uci:foreach(appname, "socks", function(t)
+		uci:delete(appname, t[".name"])
+		uci:set_list(appname, t[".name"], "autoswitch_backup_node", {})
 	end)
-	ucic:foreach(appname, "haproxy_config", function(t)
-		ucic:delete(appname, t[".name"])
+	uci:foreach(appname, "haproxy_config", function(t)
+		uci:delete(appname, t[".name"])
 	end)
-	ucic:foreach(appname, "acl_rule", function(t)
-		ucic:set(appname, t[".name"], "tcp_node", "default")
-		ucic:set(appname, t[".name"], "udp_node", "default")
+	uci:foreach(appname, "acl_rule", function(t)
+		uci:set(appname, t[".name"], "tcp_node", "default")
+		uci:set(appname, t[".name"], "udp_node", "default")
 	end)
-	ucic:foreach(appname, "nodes", function(node)
-		ucic:delete(appname, node['.name'])
+	uci:foreach(appname, "nodes", function(node)
+		uci:delete(appname, node['.name'])
 	end)
 
-	ucic:commit(appname)
+	uci:commit(appname)
 	luci.sys.call("/etc/init.d/" .. appname .. " stop")
 end
 
 function delete_select_nodes()
 	local ids = luci.http.formvalue("ids")
 	string.gsub(ids, '[^' .. "," .. ']+', function(w)
-		if (ucic:get(appname, "@global[0]", "tcp_node") or "nil") == w then
-			ucic:set(appname, '@global[0]', "tcp_node", "nil")
+		if (uci:get(appname, "@global[0]", "tcp_node") or "nil") == w then
+			uci:set(appname, '@global[0]', "tcp_node", "nil")
 		end
-		if (ucic:get(appname, "@global[0]", "udp_node") or "nil") == w then
-			ucic:set(appname, '@global[0]', "udp_node", "nil")
+		if (uci:get(appname, "@global[0]", "udp_node") or "nil") == w then
+			uci:set(appname, '@global[0]', "udp_node", "nil")
 		end
-		ucic:foreach(appname, "socks", function(t)
+		uci:foreach(appname, "socks", function(t)
 			if t["node"] == w then
-				ucic:delete(appname, t[".name"])
+				uci:delete(appname, t[".name"])
 			end
-			local auto_switch_node_list = ucic:get(appname, t[".name"], "autoswitch_backup_node") or {}
+			local auto_switch_node_list = uci:get(appname, t[".name"], "autoswitch_backup_node") or {}
 			for i = #auto_switch_node_list, 1, -1 do
 				if w == auto_switch_node_list[i] then
 					table.remove(auto_switch_node_list, i)
 				end
 			end
-			ucic:set_list(appname, t[".name"], "autoswitch_backup_node", auto_switch_node_list)
+			uci:set_list(appname, t[".name"], "autoswitch_backup_node", auto_switch_node_list)
 		end)
-		ucic:foreach(appname, "haproxy_config", function(t)
+		uci:foreach(appname, "haproxy_config", function(t)
 			if t["lbss"] == w then
-				ucic:delete(appname, t[".name"])
+				uci:delete(appname, t[".name"])
 			end
 		end)
-		ucic:foreach(appname, "acl_rule", function(t)
+		uci:foreach(appname, "acl_rule", function(t)
 			if t["tcp_node"] == w then
-				ucic:set(appname, t[".name"], "tcp_node", "default")
+				uci:set(appname, t[".name"], "tcp_node", "default")
 			end
 			if t["udp_node"] == w then
-				ucic:set(appname, t[".name"], "udp_node", "default")
+				uci:set(appname, t[".name"], "udp_node", "default")
 			end
 		end)
-		ucic:delete(appname, w)
+		uci:delete(appname, w)
 	end)
-	ucic:commit(appname)
+	uci:commit(appname)
 	luci.sys.call("/etc/init.d/" .. appname .. " restart > /dev/null 2>&1 &")
 end
 
@@ -383,7 +423,7 @@ end
 function server_user_status()
 	local e = {}
 	e.index = luci.http.formvalue("index")
-	e.status = luci.sys.call(string.format("top -bn1 | grep -v 'grep' | grep '%s/bin/' | grep -i '%s' >/dev/null", appname .. "_server", luci.http.formvalue("id"))) == 0
+	e.status = luci.sys.call(string.format("/bin/busybox top -bn1 | grep -v 'grep' | grep '%s/bin/' | grep -i '%s' >/dev/null", appname .. "_server", luci.http.formvalue("id"))) == 0
 	http_write_json(e)
 end
 

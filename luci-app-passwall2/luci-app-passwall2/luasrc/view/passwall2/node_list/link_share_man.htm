@@ -2,9 +2,11 @@
 <%
 local api = require "luci.passwall2.api"
 -%>
+<script src="<%=resource%>/qrcode.min.js"></script>
 <script type="text/javascript">//<![CDATA[
 	let has_singbox = "<%=api.finded_com("singbox")%>"
 	let has_xray = "<%=api.finded_com("xray")%>"
+	let has_hysteria2 = "<%=api.finded_com("hysteria")%>"
 	
 	function padright(str, cnt, pad) {
 		return str + Array(cnt + 1).join(pad);
@@ -71,6 +73,20 @@ local api = require "luci.passwall2.api"
 		};
 		return r;
 	}
+	
+	function genQrcode(btn, urlname, sid) {
+		var qrcode_div = document.getElementById("qrcode_div");
+		qrcode_div.style.display = null;
+		document.getElementById("qrcode").innerHTML = "";
+		var url = buildUrl(btn, urlname, sid);
+		if (url) {
+			var qrcode = new QRCode(document.getElementById("qrcode"), {
+				width: 150,
+				height: 150
+			});
+			qrcode.makeCode(url);
+		}
+	}
 
 	function buildUrl(btn, urlname, sid) {
 		var opt = {
@@ -98,27 +114,26 @@ local api = require "luci.passwall2.api"
 				}
 				return ret;
 			},
-			query: function (param, src, default_value, tval = "1", fval = "0") {
-				var ret = "&" + param + "=";
+			query: function (param, src, default_value) {
 				var obj = this.get(src);
 				if (obj) {
+					var ret = "&" + param + "=";
 					if (obj.type === "checkbox") {
-						return ret + (obj.checked === true ? tval : fval);
+						return ret + (obj.checked === true ? "1" : "0");
 					} else {
 						var result = encodeURIComponent(obj.value);
-						if ((result == null || result.trim() == "") && default_value)
-							result = default_value;
-						return ret + result;
+						if (result == null || result.trim() == "") {
+							if (default_value) {
+								return ret + default_value;
+							}
+							return "";
+						} else {
+							return ret + result;
+						}
 					}
 				}
-				return ""
+				return "";
 			}
-		}
-
-		var s = document.getElementById(urlname + "-status");
-		if (!s) {
-			alert("Never");
-			return false;
 		}
 		opt.base = "cbid." + urlname + "." + sid;
 		opt.client = urlname.indexOf("server") === -1;
@@ -136,9 +151,6 @@ local api = require "luci.passwall2.api"
 		} else if (v_type === "SSR") {
 			dom_prefix = "ssr_"
 			protocol = "ssr"
-		} else if (v_type === "Brook") {
-			dom_prefix = "brook_"
-			protocol = "brook"
 		} else if (v_type === "Hysteria2") {
 			dom_prefix = "hysteria2_"
 			protocol = "hysteria2"
@@ -161,9 +173,10 @@ local api = require "luci.passwall2.api"
 			}
 		}
 		var url = null;
-		if (v_type === "SS") {
+		if (v_type === "SS" || v_type === "SS-Rust" || ((v_type === "sing-box" || v_type === "Xray") && opt.get(dom_prefix + "protocol").value === "shadowsocks")) {
+			protocol = "ss"
 			var v_port = opt.get(dom_prefix + "port");
-			var v_method = opt.get(dom_prefix + "method");
+			var v_method = opt.get(dom_prefix + "method") || opt.get(dom_prefix + "ss_method");
 			var v_password = opt.get(dom_prefix + "password");
 
 			url = b64encsafe(v_method.value + ":" + v_password.value) + "@" +
@@ -171,43 +184,76 @@ local api = require "luci.passwall2.api"
 				v_port.value + "/?";
 
 			var params = "";
-			var v_plugin = opt.get(dom_prefix + "plugin").value;
-			if (v_plugin && v_plugin != "none") {
-				if (v_plugin == "simple-obfs" || v_plugin == "obfs-local") {
-					v_plugin = "obfs-local";
+			var v_plugin_dom = opt.get(dom_prefix + "plugin");
+			if (v_plugin_dom) {
+				var v_plugin = v_plugin_dom.value;
+				if (v_plugin && v_plugin != "none") {
+					if (v_plugin == "simple-obfs" || v_plugin == "obfs-local") {
+						v_plugin = "obfs-local";
+					}
+					var v_plugin_opts = opt.get(dom_prefix + "plugin_opts").value;
+					if (v_plugin_opts && v_plugin_opts != "") {
+						v_plugin += ";" + v_plugin_opts;
+					}
+					params += "&plugin=" + encodeURIComponent(v_plugin);
 				}
-				var v_plugin_opts = opt.get(dom_prefix + "plugin_opts").value;
-				if (v_plugin_opts && v_plugin_opts != "") {
-					v_plugin += ";" + v_plugin_opts;
+			} else {
+				var v_transport = opt.get(dom_prefix + "transport").value;
+				if (v_transport === "ws") {
+					params += opt.query("host", dom_prefix + "ws_host");
+					params += opt.query("path", dom_prefix + "ws_path");
+					if (v_type == "sing-box" && opt.get(dom_prefix + "ws_enableEarlyData").checked) {
+						var ws_maxEarlyData = opt.get(dom_prefix + "ws_maxEarlyData").value;
+						params += "?ed=" + ws_maxEarlyData;
+					}
+				} else if (v_transport === "h2") {
+					v_transport = "http";
+					params += opt.query("host", dom_prefix + "h2_host");
+					params += opt.query("path", dom_prefix + "h2_path");
+				} else if (v_transport === "tcp") {
+					params += opt.query("headerType", dom_prefix + "tcp_guise");
+					params += opt.query("host", dom_prefix + "tcp_guise_http_host");
+					params += opt.query("path", dom_prefix + "tcp_guise_http_path");
+				} else if (v_transport === "mkcp") {
+					v_transport = "kcp";
+					params += opt.query("headerType", dom_prefix + "mkcp_guise");
+				} else if (v_transport === "quic") {
+					params += opt.query("headerType", dom_prefix + "quic_guise");
+					params += opt.query("key", dom_prefix + "quic_key");
+					params += opt.query("quicSecurity", dom_prefix + "quic_security");
+				} else if (v_transport === "grpc") {
+					params += opt.query("path", dom_prefix + "grpc_serviceName");
+					params += opt.query("serviceName", dom_prefix + "grpc_serviceName");
+					params += opt.query("mode", dom_prefix + "grpc_mode");
 				}
-				params += "&plugin=" + encodeURIComponent(v_plugin);
-			}
-			params += "&group="
-			params += "#" + encodeURIComponent(v_alias.value);
-			if (params[0] == "&") {
-				params = params.substring(1);
-			}
-			url += params;
-		} else if (v_type === "SS-Rust") {
-			var v_port = opt.get(dom_prefix + "port");
-			var v_method = opt.get(dom_prefix + "method");
-			var v_password = opt.get(dom_prefix + "password");
+				params += "&type=" + v_transport;
 
-			url = btoa(v_method.value + ":" + v_password.value) + "@" +
-				_address + ":" +
-				v_port.value + "/?";
+				params += opt.query("encryption", dom_prefix + "encryption");
 
-			var params = "";
-			var v_plugin = opt.get(dom_prefix + "plugin").value;
-			if (v_plugin && v_plugin != "none") {
-				if (v_plugin == "simple-obfs" || v_plugin == "obfs-local") {
-					v_plugin = "obfs-local";
+				if (opt.get(dom_prefix + "tls").checked) {
+					var v_security = "tls";
+					if (opt.get(dom_prefix + "fingerprint") && opt.get(dom_prefix + "fingerprint").value != "") {
+						let v_fp = opt.get(dom_prefix + "fingerprint").value;
+						params += "&fp=" + v_fp;
+					}
+					if (opt.get(dom_prefix + "reality") && opt.get(dom_prefix + "reality").checked) {
+						v_security = "reality";
+						if (opt.get(dom_prefix + "fingerprint") && opt.get(dom_prefix + "fingerprint").value != "") {
+							let v_fp = opt.get(dom_prefix + "fingerprint").value;
+							params += "&fp=" + v_fp;
+						}
+						params += opt.query("pbk", dom_prefix + "reality_publicKey");
+						params += opt.query("sid", dom_prefix + "reality_shortId");
+						params += opt.query("spx", dom_prefix + "reality_spiderX");
+					}
+					if (opt.get(dom_prefix + "flow") && opt.get(dom_prefix + "flow").value) {
+						let v_flow = opt.get(dom_prefix + "flow").value;
+						params += "&flow=" + v_flow;
+					}
+					params += "&security=" + v_security;
+					params += opt.query("alpn", dom_prefix + "alpn");
+					params += opt.query("sni", dom_prefix + "tls_serverName");
 				}
-				var v_plugin_opts = opt.get(dom_prefix + "plugin_opts").value;
-				if (v_plugin_opts && v_plugin_opts != "") {
-					v_plugin += ";" + v_plugin_opts;
-				}
-				params += "&plugin=" + encodeURIComponent(v_plugin);
 			}
 			params += "&group="
 			params += "#" + encodeURIComponent(v_alias.value);
@@ -247,6 +293,10 @@ local api = require "luci.passwall2.api"
 			if (v_transport === "ws") {
 				info.host = opt.get(dom_prefix + "ws_host").value;
 				info.path = opt.get(dom_prefix + "ws_path").value;
+				if (v_type == "sing-box" && opt.get(dom_prefix + "ws_enableEarlyData").checked) {
+					var ws_maxEarlyData = opt.get(dom_prefix + "ws_maxEarlyData").value;
+					info.path = info.path + "?ed=" + ws_maxEarlyData;
+				}
 			} else if (v_transport === "h2") {
 				info.host = opt.get(dom_prefix + "h2_host").value;
 				info.path = opt.get(dom_prefix + "h2_path").value;
@@ -291,6 +341,84 @@ local api = require "luci.passwall2.api"
 			if (v_transport === "ws") {
 				params += opt.query("host", dom_prefix + "ws_host");
 				params += opt.query("path", dom_prefix + "ws_path");
+				if (v_type == "sing-box" && opt.get(dom_prefix + "ws_enableEarlyData").checked) {
+					var ws_maxEarlyData = opt.get(dom_prefix + "ws_maxEarlyData").value;
+					params += "?ed=" + ws_maxEarlyData;
+				}
+			} else if (v_transport === "h2") {
+				v_transport = "http";
+				params += opt.query("host", dom_prefix + "h2_host");
+				params += opt.query("path", dom_prefix + "h2_path");
+			} else if (v_transport === "tcp") {
+				params += opt.query("headerType", dom_prefix + "tcp_guise");
+				params += opt.query("host", dom_prefix + "tcp_guise_http_host");
+				params += opt.query("path", dom_prefix + "tcp_guise_http_path");
+			} else if (v_transport === "mkcp") {
+				v_transport = "kcp";
+				params += opt.query("headerType", dom_prefix + "mkcp_guise");
+			} else if (v_transport === "quic") {
+				params += opt.query("headerType", dom_prefix + "quic_guise");
+				params += opt.query("key", dom_prefix + "quic_key");
+				params += opt.query("quicSecurity", dom_prefix + "quic_security");
+			} else if (v_transport === "grpc") {
+				params += opt.query("path", dom_prefix + "grpc_serviceName");
+				params += opt.query("serviceName", dom_prefix + "grpc_serviceName");
+				params += opt.query("mode", dom_prefix + "grpc_mode");
+			} else if (v_transport === "splithttp") {
+				v_transport = "splithttp";
+				params += opt.query("host", dom_prefix + "splithttp_host");
+				params += opt.query("path", dom_prefix + "splithttp_path");
+			} else if (v_transport === "xhttp") {
+				v_transport = "xhttp";
+				params += opt.query("host", dom_prefix + "xhttp_host");
+				params += opt.query("path", dom_prefix + "xhttp_path");
+			}
+			params += "&type=" + v_transport;
+
+			params += opt.query("encryption", dom_prefix + "encryption");
+
+			if (opt.get(dom_prefix + "tls").checked) {
+				var v_security = "tls";
+				if (opt.get(dom_prefix + "fingerprint") && opt.get(dom_prefix + "fingerprint").value != "") {
+					let v_fp = opt.get(dom_prefix + "fingerprint").value;
+					params += "&fp=" + v_fp;
+				}
+				if (opt.get(dom_prefix + "reality") && opt.get(dom_prefix + "reality").checked) {
+					v_security = "reality";
+					params += opt.query("pbk", dom_prefix + "reality_publicKey");
+					params += opt.query("sid", dom_prefix + "reality_shortId");
+					params += opt.query("spx", dom_prefix + "reality_spiderX");
+				}
+				if (opt.get(dom_prefix + "flow") && opt.get(dom_prefix + "flow").value) {
+					let v_flow = opt.get(dom_prefix + "flow").value;
+					params += "&flow=" + v_flow;
+				}
+				params += "&security=" + v_security;
+				params += opt.query("alpn", dom_prefix + "alpn");
+				params += opt.query("sni", dom_prefix + "tls_serverName");
+			}
+
+			params += "#" + encodeURI(v_alias.value);
+			if (params[0] == "&") {
+				params = params.substring(1);
+			}
+			url += params;
+		} else if ((v_type === "sing-box" || v_type === "Xray") && opt.get(dom_prefix + "protocol").value === "trojan") {
+			protocol = "trojan";
+			var v_password = opt.get(dom_prefix + "password");
+			var v_port = opt.get(dom_prefix + "port");
+			url = encodeURIComponent(v_password.value) +
+				"@" + _address +
+				":" + v_port.value + "/?";
+			var params = "";
+			var v_transport = opt.get(dom_prefix + "transport").value;
+			if (v_transport === "ws") {
+				params += opt.query("host", dom_prefix + "ws_host");
+				params += opt.query("path", dom_prefix + "ws_path");
+				if (v_type == "sing-box" && opt.get(dom_prefix + "ws_enableEarlyData").checked) {
+					var ws_maxEarlyData = opt.get(dom_prefix + "ws_maxEarlyData").value;
+					params += "?ed=" + ws_maxEarlyData;
+				}
 			} else if (v_transport === "h2") {
 				v_transport = "http";
 				params += opt.query("host", dom_prefix + "h2_host");
@@ -336,82 +464,84 @@ local api = require "luci.passwall2.api"
 					params += "&flow=" + v_flow;
 				}
 				params += "&security=" + v_security;
+				params += opt.query("alpn", dom_prefix + "alpn");
 				params += opt.query("sni", dom_prefix + "tls_serverName");
-			}
-
-			params += "#" + encodeURI(v_alias.value);
-			if (params[0] == "&") {
-				params = params.substring(1);
-			}
-			url += params;
-		} else if ((v_type === "sing-box" || v_type === "Xray") && opt.get(dom_prefix + "protocol").value === "trojan") {
-			protocol = "trojan";
-			var v_password = opt.get(dom_prefix + "password");
-			var v_port = opt.get(dom_prefix + "port");
-			url = encodeURIComponent(v_password.value) +
-				"@" + _address +
-				":" + v_port.value + "/?";
-			var params = "";
-			if (opt.get(dom_prefix + "tls").checked) {
-				params += opt.query("sni", dom_prefix + "tls_serverName");
-				params += "&tls=1"
-				params += opt.query("allowinsecure", dom_prefix + "tls_allowInsecure");
 			}
 			params += "#" + encodeURI(v_alias.value);
 			if (params[0] == "&") {
 				params = params.substring(1);
 			}
 			url += params;
-		} else if (v_type === "Brook") {
-			var url = "";
-			var params = "?";
-			var v_protocol = opt.get(dom_prefix + "protocol");
-			var v_port = opt.get(dom_prefix + "port");
-			var v_password = opt.get(dom_prefix + "password");
-			var b_protocol_value = v_protocol.value.split('client').join('server');
-
-			var url_protocol = b_protocol_value;
-			params += opt.query("password", dom_prefix + "password");
-			if (b_protocol_value == "wsserver") {
-				var server = '';
-				var prefix = "ws://";
-				if (opt.get(dom_prefix + "tls").checked) {
-					prefix = "wss://";
-					url_protocol = 'wssserver';
-				}
-				var v_path = opt.get(dom_prefix + "ws_path");
-				var v_path_value = v_path.value || '/ws';
-				if (v_path_value.length > 1 && v_path_value.indexOf('/') < 0) {
-					v_path_value = '/' + v_path_value;
-				}
-				params += "&" + url_protocol + "=" + encodeURIComponent(prefix + _address + ":" + v_port.value + v_path_value);
-			} else {
-				params += "&" + url_protocol + "=" + encodeURIComponent(_address + ":" + v_port.value);
-			}
-			url += url_protocol;
-			url += params;
-		} else if (v_type === "Hysteria2") {
+		} else if ((v_type === "Hysteria2") || (v_type === "sing-box" && opt.get(dom_prefix + "protocol").value === "hysteria2")) {
+			protocol = "hysteria2";
 			var v_port = opt.get(dom_prefix + "port");
 			var params = "";
-			params += opt.query("auth", dom_prefix + "auth_password");
 			params += opt.query("sni", dom_prefix + "tls_serverName");
 			params += opt.query("insecure", dom_prefix + "tls_allowInsecure");
+			
+			var v_password = null;
 			params += opt.query("obfs", "salamander");
-			params += opt.query("obfs-password", dom_prefix + "obfs");
-			var url =
+			if (v_type === "Hysteria2") {
+				v_password = opt.get("hysteria2_auth_password");
+				params += opt.query("obfs-password", "hysteria2_obfs");
+				params += opt.query("pinSHA256", "hysteria2_tls_pinSHA256");
+			} else {
+				v_password = opt.get(dom_prefix + "hysteria2_auth_password");
+				params += opt.query("obfs-password", dom_prefix + "hysteria2_obfs_password");
+			}
+			url =
 				_address + ":" +
 				v_port.value + "?" +
 				params +
 				"#" + encodeURI(v_alias.value);
+			if (v_password) {
+				url = encodeURIComponent(v_password.value) + "@" + url
+			}
+		} else if (v_type === "sing-box" && opt.get(dom_prefix + "protocol").value === "tuic") {
+			protocol = "tuic";
+			var v_username = opt.get(dom_prefix + "uuid");
+			var v_password = opt.get(dom_prefix + "password");
+			var v_port = opt.get(dom_prefix + "port");
+			url = encodeURIComponent(v_username.value) +
+				":" + encodeURIComponent(v_password.value) +
+				"@" + _address +
+				":" + v_port.value + "?";
+
+			var params = "";
+			params += opt.query("sni", dom_prefix + "tls_serverName");
+			params += opt.query("alpn", dom_prefix + "tuic_alpn");
+			params += opt.query("congestion_control", dom_prefix + "tuic_congestion_control");
+			params += opt.query("allowinsecure", dom_prefix + "tls_allowInsecure");
+
+			params += "#" + encodeURI(v_alias.value);
+			if (params[0] == "&") {
+				params = params.substring(1);
+			}
+			url += params;
 		}
 		if (url) {
 			url = protocol.toLowerCase() + "://" + url;
+			return url;
+		} else {
+			alert("<%:Not a supported scheme:%> " + v_type);
+		}
+		return false;
+	}
+	
+	function exportUrl(btn, urlname, sid) {
+		var url = buildUrl(btn, urlname, sid);
+		if (url) {
 			var textarea = document.createElement("textarea");
 			textarea.textContent = url;
 			textarea.style.position = "fixed";
 			document.body.appendChild(textarea);
 			textarea.select();
 			try {
+				var s = document.getElementById(urlname + "-status");
+				if (!s) {
+					alert("Never");
+					return false;
+				}
 				document.execCommand("copy"); // Security exception may be thrown by some browsers.
 				s.innerHTML = "<font color='green'><%:Share URL to clipboard successfully.%></font>";
 			} catch (ex) {
@@ -419,11 +549,7 @@ local api = require "luci.passwall2.api"
 			} finally {
 				document.body.removeChild(textarea);
 			}
-			//alert(url);
-		} else {
-			alert("<%:Not a supported scheme:%> " + v_type);
 		}
-		return false;
 	}
 
 	function fromUrl(btn, urlname, sid) {
@@ -579,54 +705,170 @@ local api = require "luci.passwall2.api"
 			if (sipIndex !== -1) {
 				// SIP002
 				var userInfo = b64decsafe(url0.substr(0, sipIndex));
-				var temp = url0.substr(sipIndex + 1).split("/?");
+				var temp = url0.substr(sipIndex + 1).replace('/?', '?').split('?');
 				var serverInfo = temp[0].split(":");
 				var server = serverInfo[0];
 				var port = serverInfo[1];
 				var method, password, plugin, pluginOpts;
+				var queryParam = {};
 				if (temp[1]) {
-					var pluginInfo = decodeURIComponent(temp[1]);
-					var pluginIndex = pluginInfo.indexOf(";");
-					var pluginNameInfo = pluginInfo.substr(0, pluginIndex);
-					plugin = pluginNameInfo.substr(pluginNameInfo.indexOf("=") + 1)
-					pluginOpts = pluginInfo.substr(pluginIndex + 1).split("&")[0];
+					var queryArray = temp[1].split('&');
+					var params;
+					for (var i = 0; i < queryArray.length; i++) {
+						params = queryArray[i].split('=');
+						queryParam[decodeURIComponent(params[0])] = decodeURIComponent(params[1] || '');
+					}
+					if (queryParam.plugin) {
+						var pluginInfo = decodeURIComponent(temp[1]);
+						var pluginIndex = pluginInfo.indexOf(";");
+						var pluginNameInfo = pluginInfo.substr(0, pluginIndex);
+						plugin = pluginNameInfo.substr(pluginNameInfo.indexOf("=") + 1)
+						pluginOpts = pluginInfo.substr(pluginIndex + 1).split("&")[0];
+					}
 				}
 				var userInfoSplitIndex = userInfo.indexOf(":");
 				if (userInfoSplitIndex !== -1) {
 					method = userInfo.substr(0, userInfoSplitIndex);
 					password = userInfo.substr(userInfoSplitIndex + 1);
 				}
-				if (["2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305"].includes(method)) {
-					opt.set('type', "SS-Rust");
-					dom_prefix = "ssrust_"
+				if (has_singbox) {
+					dom_prefix = "singbox_"
+					opt.set('type', "sing-box");
+					opt.set(dom_prefix + 'protocol', "shadowsocks");
+				} else if (has_xray) {
+					dom_prefix = "xray_"
+					opt.set('type', "Xray");
+					opt.set(dom_prefix + 'protocol', "shadowsocks");
 				} else {
-					opt.set('type', "SS");
+					if (["2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305"].includes(method)) {
+						dom_prefix = "ssrust_"
+						opt.set('type', "SS-Rust");
+					} else {
+						dom_prefix = "ss_"
+						opt.set('type', "SS");
+					}
 				}
 				opt.set(dom_prefix + 'address', server);
 				opt.set(dom_prefix + 'port', port);
 				opt.set(dom_prefix + 'password', password || "");
 				opt.set(dom_prefix + 'method', method || "");
+				opt.set(dom_prefix + 'ss_method', method || "");
 				opt.set(dom_prefix + 'plugin', plugin || "none");
 				if (plugin && plugin != "none") {
 					opt.set(dom_prefix + 'plugin_opts', pluginOpts || "");
+					opt.set(dom_prefix + 'plugin_enabled', true);
 				}
 				if (param !== undefined) {
-					opt.set('remarks', decodeURI(param));
+					opt.set('remarks', decodeURIComponent(param));
+				}
+				if (!queryParam.plugin && (dom_prefix == "singbox_" || dom_prefix == "xray_")) {
+					opt.set(dom_prefix + 'encryption', queryParam.encryption);
+					if (queryParam.security) {
+						if (queryParam.security == "tls") {
+							opt.set(dom_prefix + 'tls', true);
+							opt.set(dom_prefix + 'reality', false)
+							opt.set(dom_prefix + 'flow', queryParam.flow || '');
+							opt.set(dom_prefix + 'alpn', queryParam.alpn || '');
+							opt.set(dom_prefix + 'tls_serverName', queryParam.sni || '');
+							opt.set(dom_prefix + 'tls_allowInsecure', true);
+							if (queryParam.allowinsecure === '0') {
+								opt.set(dom_prefix + 'tls_allowInsecure', false);
+							}
+							if (queryParam.fp && queryParam.fp.trim() != "") {
+								opt.set(dom_prefix + 'fingerprint', queryParam.fp);
+							}
+						}
+
+						if (queryParam.security == "reality") {
+							opt.set(dom_prefix + 'tls', true);
+							opt.set(dom_prefix + 'reality', true)
+							opt.set(dom_prefix + 'flow', queryParam.flow || '');
+							opt.set(dom_prefix + 'tls_serverName', queryParam.sni || '');
+							if (queryParam.fp && queryParam.fp.trim() != "") {
+								opt.set(dom_prefix + 'fingerprint', queryParam.fp);
+							}
+							opt.set(dom_prefix + 'reality_publicKey', queryParam.pbk || '');
+							opt.set(dom_prefix + 'reality_shortId', queryParam.sid || '');
+							opt.set(dom_prefix + 'reality_spiderX', queryParam.spx || '');
+						}
+
+					}
+
+					queryParam.type = queryParam.type.toLowerCase();
+					if (queryParam.type === "kcp" || queryParam.type === "mkcp")
+						queryParam.type = "mkcp"
+					if (queryParam.type === "h2" || queryParam.type === "http")
+						queryParam.type = "h2"
+					opt.set(dom_prefix + 'transport', queryParam.type);
+					if (queryParam.type === "tcp") {
+						opt.set(dom_prefix + 'tcp_guise', queryParam.headerType || "none");
+						if (queryParam.headerType && queryParam.headerType != "none") {
+							opt.set(dom_prefix + 'tcp_guise_http_host', queryParam.host || "");
+							opt.set(dom_prefix + 'tcp_guise_http_path', queryParam.path || "");
+						}
+					} else if (queryParam.type === "ws") {
+						opt.set(dom_prefix + 'ws_host', queryParam.host || "");
+						opt.set(dom_prefix + 'ws_path', queryParam.path || "");
+						if (dom_prefix == "singbox_" && queryParam.path && queryParam.path.length > 1) {
+							var ws_path_params = {};
+							var ws_path_dat = queryParam.path.split('?');
+							var ws_path = ws_path_dat[0];
+							var ws_path_params = {};
+							var ws_path_params_array = (ws_path_dat[1] || '').split('&');
+							for (i = 0; i < ws_path_params_array.length; i++) {
+								var kv = ws_path_params_array[i].split('=');
+								ws_path_params[decodeURIComponent(kv[0]).toLowerCase()] = decodeURIComponent(kv[1] || '');
+							}
+							
+							if (ws_path_params.ed) {
+								opt.set(dom_prefix + 'ws_path', ws_path);
+								opt.set(dom_prefix + 'ws_enableEarlyData', true);
+								opt.set(dom_prefix + 'ws_maxEarlyData', ws_path_params.ed);
+								opt.set(dom_prefix + 'ws_earlyDataHeaderName', 'Sec-WebSocket-Protocol');
+							}
+						}
+					} else if (queryParam.type === "h2" || queryParam.type === "http") {
+						opt.set(dom_prefix + 'h2_host', queryParam.host || "");
+						opt.set(dom_prefix + 'h2_path', queryParam.path || "");
+					} else if (queryParam.type === "quic") {
+						opt.set(dom_prefix + 'quic_guise', queryParam.headerType || "none");
+						opt.set(dom_prefix + 'quic_security', queryParam.quicSecurity);
+						opt.set(dom_prefix + 'quic_key', queryParam.key);
+					} else if (queryParam.type === "kcp" || queryParam.type === "mkcp") {
+						opt.set(dom_prefix + 'mkcp_guise', queryParam.headerType || "none");
+					} else if (queryParam.type === "grpc") {
+						opt.set(dom_prefix + 'grpc_serviceName', (queryParam.serviceName || queryParam.path) || "");
+						opt.set(dom_prefix + 'grpc_mode', queryParam.mode);
+					}
 				}
 			} else {
 				var sstr = b64decsafe(url0);
 				var team = sstr.split('@');
-				opt.set('type', "SS");
 				var part1 = team[0].split(':');
 				var part2 = team[1].split(':');
+				
+				if (has_singbox) {
+					dom_prefix = "singbox_"
+					opt.set('type', "sing-box");
+					opt.set(dom_prefix + 'protocol', "shadowsocks");
+				} else if (has_xray) {
+					dom_prefix = "xray_"
+					opt.set('type', "Xray");
+					opt.set(dom_prefix + 'protocol', "shadowsocks");
+				} else {
+					dom_prefix = "ss_"
+					opt.set('type', "SS");
+				}
+				
 				opt.set(dom_prefix + 'address', part2[0]);
 				opt.set(dom_prefix + 'port', part2[1]);
 				opt.set(dom_prefix + 'password', part1[1]);
 				opt.set(dom_prefix + 'method', part1[0]);
+				opt.set(dom_prefix + 'ss_method', part1[0]);
 				opt.set(dom_prefix + 'plugin', "none");
 				//opt.set(dom_prefix + 'plugin_opts', "");
 				if (param !== undefined) {
-					opt.set('remarks', decodeURI(param));
+					opt.set('remarks', decodeURIComponent(param));
 				}
 			}
 		}
@@ -639,43 +881,90 @@ local api = require "luci.passwall2.api"
 			}
 			var queryParam = {};
 			if (m.search.length > 1) {
-				var query = m.search.split('?');
+				var query = m.search.replace('/?', '?').split('?');
 				var queryParams = query[1];
 				var queryArray = queryParams.split('&');
 				var params;
-				for (i = 0; i < queryArray.length; i++) {
+				for (var i = 0; i < queryArray.length; i++) {
 					params = queryArray[i].split('=');
 					queryParam[decodeURIComponent(params[0]).toLowerCase()] = decodeURIComponent(params[1] || '');
 				}
 			}
 			if (has_singbox) {
-				opt.set('type', "sing-box");
 				dom_prefix = "singbox_"
+				opt.set('type', "sing-box");
 			} else if (has_xray) {
-				opt.set('type', "Xray");
 				dom_prefix = "xray_"
+				opt.set('type', "Xray");
 			}
+			opt.set(dom_prefix + 'mux', queryParam.mux === '1');
 			opt.set(dom_prefix + 'protocol', "trojan");
 			opt.set(dom_prefix + 'address', m.hostname);
 			opt.set(dom_prefix + 'port', m.port || "443");
 			opt.set(dom_prefix + 'password', decodeURIComponent(password));
-			opt.set(dom_prefix + 'tls', true);
-			opt.set(dom_prefix + 'tls_serverName', queryParam.peer || queryParam.sni || '');
-			opt.set(dom_prefix + 'tls_allowInsecure', queryParam.allowinsecure === '1');
+
+			queryParam.type = queryParam.type.toLowerCase();
+			if (queryParam.type === "kcp" || queryParam.type === "mkcp")
+				queryParam.type = "mkcp"
+			if (queryParam.type === "h2" || queryParam.type === "http")
+				queryParam.type = "h2"
+			opt.set(dom_prefix + 'transport', queryParam.type);
+			if (queryParam.type === "tcp") {
+				opt.set(dom_prefix + 'tcp_guise', queryParam.headerType || "none");
+				if (queryParam.headerType && queryParam.headerType != "none") {
+					opt.set(dom_prefix + 'tcp_guise_http_host', queryParam.host || "");
+					opt.set(dom_prefix + 'tcp_guise_http_path', queryParam.path || "");
+				}
+			} else if (queryParam.type === "ws") {
+				opt.set(dom_prefix + 'ws_host', queryParam.host || "");
+				opt.set(dom_prefix + 'ws_path', queryParam.path || "");
+				if (dom_prefix == "singbox_" && queryParam.path && queryParam.path.length > 1) {
+					var ws_path_params = {};
+					var ws_path_dat = queryParam.path.split('?');
+					var ws_path = ws_path_dat[0];
+					var ws_path_params = {};
+					var ws_path_params_array = (ws_path_dat[1] || '').split('&');
+					for (i = 0; i < ws_path_params_array.length; i++) {
+						var kv = ws_path_params_array[i].split('=');
+						ws_path_params[decodeURIComponent(kv[0]).toLowerCase()] = decodeURIComponent(kv[1] || '');
+					}
+					
+					if (ws_path_params.ed) {
+						opt.set(dom_prefix + 'ws_path', ws_path);
+						opt.set(dom_prefix + 'ws_enableEarlyData', true);
+						opt.set(dom_prefix + 'ws_maxEarlyData', ws_path_params.ed);
+						opt.set(dom_prefix + 'ws_earlyDataHeaderName', 'Sec-WebSocket-Protocol');
+					}
+				}
+			} else if (queryParam.type === "h2" || queryParam.type === "http") {
+				opt.set(dom_prefix + 'h2_host', queryParam.host || "");
+				opt.set(dom_prefix + 'h2_path', queryParam.path || "");
+			} else if (queryParam.type === "quic") {
+				opt.set(dom_prefix + 'quic_guise', queryParam.headerType || "none");
+				opt.set(dom_prefix + 'quic_security', queryParam.quicSecurity);
+				opt.set(dom_prefix + 'quic_key', queryParam.key);
+			} else if (queryParam.type === "kcp" || queryParam.type === "mkcp") {
+				opt.set(dom_prefix + 'mkcp_guise', queryParam.headerType || "none");
+			} else if (queryParam.type === "grpc") {
+				opt.set(dom_prefix + 'grpc_serviceName', (queryParam.serviceName || queryParam.path) || "");
+				opt.set(dom_prefix + 'grpc_mode', queryParam.mode);
+			}
+
 			opt.set(dom_prefix + 'mux', queryParam.mux === '1');
 			if (m.hash) {
-				opt.set('remarks', decodeURI(m.hash.substr(1)));
+				opt.set('remarks', decodeURIComponent(m.hash.substr(1)));
 			}
 		}
 		if (ssu[0] === "vmess") {
 			var sstr = b64DecodeUnicode(ssu[1]);
 			var ploc = sstr.indexOf("/?");
 			if (has_singbox) {
-				opt.set('type', "sing-box");
 				dom_prefix = "singbox_"
-			} else if (has_xray) {
-				opt.set('type', "Xray");
+				opt.set('type', "sing-box");
+			}
+			if (has_xray) {
 				dom_prefix = "xray_"
+				opt.set('type', "Xray");
 			}
 			opt.set(dom_prefix + 'protocol', "vmess");
 			var url0, param = "";
@@ -709,6 +998,24 @@ local api = require "luci.passwall2.api"
 			} else if (ssm.net === "ws") {
 				opt.set(dom_prefix + 'ws_host', ssm.host);
 				opt.set(dom_prefix + 'ws_path', ssm.path);
+				if (dom_prefix == "singbox_" && ssm.path && ssm.path.length > 1) {
+					var ws_path_params = {};
+					var ws_path_dat = ssm.path.split('?');
+					var ws_path = ws_path_dat[0];
+					var ws_path_params = {};
+					var ws_path_params_array = (ws_path_dat[1] || '').split('&');
+					for (i = 0; i < ws_path_params_array.length; i++) {
+						var kv = ws_path_params_array[i].split('=');
+						ws_path_params[decodeURIComponent(kv[0]).toLowerCase()] = decodeURIComponent(kv[1] || '');
+					}
+					
+					if (ws_path_params.ed) {
+						opt.set(dom_prefix + 'ws_path', ws_path);
+						opt.set(dom_prefix + 'ws_enableEarlyData', true);
+						opt.set(dom_prefix + 'ws_maxEarlyData', ws_path_params.ed);
+						opt.set(dom_prefix + 'ws_earlyDataHeaderName', 'Sec-WebSocket-Protocol');
+					}
+				}
 			} else if (ssm.net === "h2") {
 				opt.set(dom_prefix + 'h2_host', ssm.host);
 				opt.set(dom_prefix + 'h2_path', ssm.path);
@@ -723,12 +1030,12 @@ local api = require "luci.passwall2.api"
 		}
 		if (ssu[0] === "vless") {
 			if (has_singbox) {
-				opt.set('type', "sing-box");
 				dom_prefix = "singbox_"
+				opt.set('type', "sing-box");
 			}
 			if (has_xray) {
-				opt.set('type', "Xray");
 				dom_prefix = "xray_"
+				opt.set('type', "Xray");
 			}
 			opt.set(dom_prefix + 'protocol', "vless");
 			var m = parseNodeUrl(ssrurl);
@@ -742,7 +1049,7 @@ local api = require "luci.passwall2.api"
 			opt.set(dom_prefix + 'port', m.port || "443");
 			var queryParam = {};
 			if (m.search.length > 1) {
-				var query = m.search.split('?');
+				var query = m.search.replace('/?', '?').split('?')
 				var queryParams = query[1];
 				var queryArray = queryParams.split('&');
 				var params;
@@ -758,6 +1065,7 @@ local api = require "luci.passwall2.api"
 					opt.set(dom_prefix + 'tls', true);
 					opt.set(dom_prefix + 'reality', false)
 					opt.set(dom_prefix + 'flow', queryParam.flow || '');
+					opt.set(dom_prefix + 'alpn', queryParam.alpn || '');
 					opt.set(dom_prefix + 'tls_serverName', queryParam.sni || '');
 					opt.set(dom_prefix + 'tls_allowInsecure', true);
 					if (queryParam.allowinsecure === '0') {
@@ -798,6 +1106,24 @@ local api = require "luci.passwall2.api"
 			} else if (queryParam.type === "ws") {
 				opt.set(dom_prefix + 'ws_host', queryParam.host || "");
 				opt.set(dom_prefix + 'ws_path', queryParam.path || "");
+				if (dom_prefix == "singbox_" && queryParam.path && queryParam.path.length > 1) {
+					var ws_path_params = {};
+					var ws_path_dat = queryParam.path.split('?');
+					var ws_path = ws_path_dat[0];
+					var ws_path_params = {};
+					var ws_path_params_array = (ws_path_dat[1] || '').split('&');
+					for (i = 0; i < ws_path_params_array.length; i++) {
+						var kv = ws_path_params_array[i].split('=');
+						ws_path_params[decodeURIComponent(kv[0]).toLowerCase()] = decodeURIComponent(kv[1] || '');
+					}
+					
+					if (ws_path_params.ed) {
+						opt.set(dom_prefix + 'ws_path', ws_path);
+						opt.set(dom_prefix + 'ws_enableEarlyData', true);
+						opt.set(dom_prefix + 'ws_maxEarlyData', ws_path_params.ed);
+						opt.set(dom_prefix + 'ws_earlyDataHeaderName', 'Sec-WebSocket-Protocol');
+					}
+				}
 			} else if (queryParam.type === "h2" || queryParam.type === "http") {
 				opt.set(dom_prefix + 'h2_host', queryParam.host || "");
 				opt.set(dom_prefix + 'h2_path', queryParam.path || "");
@@ -810,75 +1136,28 @@ local api = require "luci.passwall2.api"
 			} else if (queryParam.type === "grpc") {
 				opt.set(dom_prefix + 'grpc_serviceName', (queryParam.serviceName || queryParam.path) || "");
 				opt.set(dom_prefix + 'grpc_mode', queryParam.mode);
+			} else if (queryParam.type === "splithttp") {
+				opt.set(dom_prefix + 'splithttp_host', queryParam.host || "");
+				opt.set(dom_prefix + 'splithttp_path', queryParam.path || "");
+			} else if (queryParam.type === "xhttp") {
+				opt.set(dom_prefix + 'xhttp_host', queryParam.host || "");
+				opt.set(dom_prefix + 'xhttp_path', queryParam.path || "");
 			}
 
 			if (m.hash) {
-				opt.set('remarks', decodeURI(m.hash.substr(1)));
+				opt.set('remarks', decodeURIComponent(m.hash.substr(1)));
 			}
 		}
-		if (ssu[0] === "brook") {
-			dom_prefix = "brook_"
-			var stype = "Brook";
+		if (ssu[0] === "hysteria2" || ssu[0] === "hy2") {
 			var m = parseNodeUrl(ssrurl);
-
-			var from_protocol = m.host;
-			var protocol = from_protocol.split('server').join('client');
-
-			var queryParam = {};
-			if (m.search.length > 1) {
-				var query = m.search.split('?');
-				var queryParams = query[1];
-				var queryArray = queryParams.split('&');
-				var params;
-				for (i = 0; i < queryArray.length; i++) {
-					params = queryArray[i].split('=');
-					queryParam[decodeURIComponent(params[0])] = decodeURIComponent(params[1] || '');
-				}
-			}
-
-			var password = queryParam.password;
+			var password = m.passwd;
 			if (password === "") {
 				s.innerHTML = "<font color='red'><%:Invalid Share URL Format%></font>";
 				return false;
 			}
-
-			opt.set('type', stype);
-			opt.set(dom_prefix + 'protocol', protocol);
-			opt.set(dom_prefix + 'password', password);
-
-			if (protocol == 'wsclient' || protocol == 'wssclient') {
-				opt.set(dom_prefix + 'protocol', 'wsclient');
-				var wsserver = queryParam[from_protocol].split('://');
-				wsserver = wsserver[1].split('/');
-				var path = wsserver[1] && '/' + wsserver[1] || '/ws';
-				var server = wsserver[0].split(':');
-				opt.set(dom_prefix + 'address', server[0]);
-				opt.set(dom_prefix + 'port', server[1]);
-				opt.set(dom_prefix + 'ws_path', path);
-				if (protocol == 'wssclient') {
-					opt.set(dom_prefix + 'tls', true);
-				}
-			} else {
-				var server = queryParam[from_protocol].split(':');
-				if (server.length < 2) {
-					s.innerHTML = "<font color='red'><%:Invalid Share URL Format%></font>";
-					return false;
-				}
-				opt.set(dom_prefix + 'address', server[0]);
-				opt.set(dom_prefix + 'port', server[1]);
-			}
-
-			if (m.hash) {
-				opt.set('remarks', decodeURI(m.hash.substr(1)));
-			}
-		}
-		if (ssu[0] === "hysteria2") {
-			dom_prefix = "hysteria2_"
-			var stype = "Hysteria2";
-			var m = parseNodeUrl(ssrurl);
 			var queryParam = {};
 			if (m.search.length > 1) {
-				var query = m.search.split('?');
+				var query = m.search.replace('/?', '?').split('?')
 				var queryParams = query[1];
 				var queryArray = queryParams.split('&');
 				var params;
@@ -887,17 +1166,76 @@ local api = require "luci.passwall2.api"
 					queryParam[decodeURIComponent(params[0])] = decodeURIComponent(params[1] || '');
 				}
 			}
-			opt.set('type', stype);
+			if (has_singbox) {
+				dom_prefix = "singbox_"
+				opt.set('type', "sing-box");
+				opt.set(dom_prefix + 'protocol', "hysteria2");
+				opt.set(dom_prefix + 'hysteria2_auth_password', decodeURIComponent(password));
+				if (queryParam["obfs-password"]) {
+					opt.set(dom_prefix + 'hysteria2_obfs_type', "salamander");
+					opt.set(dom_prefix + 'hysteria2_obfs_password', queryParam["obfs-password"]);
+				}
+			}
+			if (has_hysteria2) {
+				opt.set('type', "Hysteria2");
+				dom_prefix = "hysteria2_"
+				opt.set(dom_prefix + 'auth_password', decodeURIComponent(password));
+				if (queryParam["obfs-password"]) {
+					opt.set(dom_prefix + 'obfs', queryParam["obfs-password"]);
+				}
+				if (queryParam.pinSHA256) {
+					opt.set(dom_prefix + 'tls_pinSHA256', queryParam.pinSHA256);
+				}
+			}
+			
 			opt.set(dom_prefix + 'address', m.hostname);
 			opt.set(dom_prefix + 'port', m.port || "443");
-			opt.set(dom_prefix + 'obfs', queryParam["obfs-password"]);
-			opt.set(dom_prefix + 'auth', queryParam.auth);
+			
 			opt.set(dom_prefix + 'tls_serverName', queryParam.sni);
 			if (queryParam.insecure && queryParam.insecure == "1") {
 				opt.set(dom_prefix + 'tls_allowInsecure', true);
 			}
 			if (m.hash) {
-				opt.set('remarks', decodeURI(m.hash.substr(1)));
+				opt.set('remarks', decodeURIComponent(m.hash.substr(1)));
+			}
+		}
+		if (ssu[0] === "tuic") {
+			if (has_singbox) {
+				dom_prefix = "singbox_"
+				opt.set('type', "sing-box");
+			}
+			opt.set(dom_prefix + 'protocol', "tuic");
+			var _parsedUrl = new URL("http://" + ssu[1]);
+			var username = _parsedUrl.username;
+			var password = _parsedUrl.password;
+			var hostname = _parsedUrl.hostname;
+			var port = _parsedUrl.port;
+			var search = _parsedUrl.search;
+			var hash = _parsedUrl.hash;
+			opt.set(dom_prefix + 'uuid', decodeURIComponent(username));
+			opt.set(dom_prefix + 'password', decodeURIComponent(password));
+			opt.set(dom_prefix + 'address', hostname);
+			opt.set(dom_prefix + 'port', port || "443");
+			var queryParam = {};
+			if (search.length > 1) {
+				var query = search.split('?')
+				var queryParams = query[1];
+				var queryArray = queryParams.split('&');
+				var params;
+				for (i = 0; i < queryArray.length; i++) {
+					params = queryArray[i].split('=');
+					queryParam[decodeURIComponent(params[0])] = decodeURIComponent(params[1] || '');
+				}
+			}
+			opt.set(dom_prefix + 'tuic_congestion_control', queryParam.congestion_control || 'cubic');
+			opt.set(dom_prefix + 'tuic_alpn', queryParam.alpn || 'default');
+			opt.set(dom_prefix + 'tls_serverName', queryParam.sni || '');
+			opt.set(dom_prefix + 'tls_allowInsecure', true);
+			if (queryParam.allowinsecure === '0') {
+				opt.set(dom_prefix + 'tls_allowInsecure', false);
+			}
+			if (hash) {
+				opt.set('remarks', decodeURIComponent(hash.substr(1)));
 			}
 		}
 		if (dom_prefix && dom_prefix != null) {
@@ -915,6 +1253,10 @@ local api = require "luci.passwall2.api"
 
 //]]></script>
 <input type="button" class="btn cbi-button cbi-button-apply" value='<%:From Share URL%>' onclick="return fromUrl(this, '<%=self.option%>', '<%=self.value%>')" />
-<input type="button" class="btn cbi-button cbi-button-apply" value='<%:Build Share URL%>' onclick="return buildUrl(this, '<%=self.option%>', '<%=self.value%>')" />
+<input type="button" class="btn cbi-button cbi-button-apply" value='<%:Build Share URL%>' onclick="return exportUrl(this, '<%=self.option%>', '<%=self.value%>')" />
+<input type="button" class="btn cbi-button cbi-button-apply" value='<%:Generate QRCode%>' onclick="return genQrcode(this, '<%=self.option%>', '<%=self.value%>')" />
+<div id="qrcode_div" style="margin-top: 1rem;display:none">
+	<div id="qrcode"></div>
+</div>
 <span id="<%=self.option%>-status"></span>
 <%+cbi/valuefooter%>

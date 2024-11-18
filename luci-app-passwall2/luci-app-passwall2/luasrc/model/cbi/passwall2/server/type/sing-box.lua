@@ -215,7 +215,6 @@ o.validate = function(self, value, t)
 	end
 end
 o:depends({ [option_name("protocol")] = "http" })
-o:depends({ [option_name("protocol")] = "shadowsocks" })
 o:depends({ [option_name("protocol")] = "vmess" })
 o:depends({ [option_name("protocol")] = "vless" })
 o:depends({ [option_name("protocol")] = "trojan" })
@@ -224,10 +223,9 @@ if singbox_tags:find("with_reality_server") then
 	-- [[ REALITY部分 ]] --
 	o = s:option(Flag, option_name("reality"), translate("REALITY"))
 	o.default = 0
-	o:depends({ [option_name("protocol")] = "vless", [option_name("tls")] = true })
-	o:depends({ [option_name("protocol")] = "vmess", [option_name("tls")] = true })
-	o:depends({ [option_name("protocol")] = "shadowsocks", [option_name("tls")] = true })
 	o:depends({ [option_name("protocol")] = "http", [option_name("tls")] = true })
+	o:depends({ [option_name("protocol")] = "vmess", [option_name("tls")] = true })
+	o:depends({ [option_name("protocol")] = "vless", [option_name("tls")] = true })
 	o:depends({ [option_name("protocol")] = "trojan", [option_name("tls")] = true })
 	
 	o = s:option(Value, option_name("reality_private_key"), translate("Private Key"))
@@ -293,9 +291,19 @@ if singbox_tags:find("with_ech") then
 	o:depends({ [option_name("protocol")] = "tuic" })
 	o:depends({ [option_name("protocol")] = "hysteria2" })
 
-	o = s:option(Value, option_name("ech_key"), translate("ECH Key"))
+	o = s:option(TextValue, option_name("ech_key"), translate("ECH Key"))
 	o.default = ""
+	o.rows = 5
+	o.wrap = "off"
 	o:depends({ [option_name("ech")] = true })
+	o.validate = function(self, value)
+		value = value:gsub("^%s+", ""):gsub("%s+$","\n"):gsub("\r\n","\n"):gsub("[ \t]*\n[ \t]*", "\n")
+		value = value:gsub("^%s*\n", "")
+		if value:sub(-1) == "\n" then  
+			value = value:sub(1, -2)  
+		end
+		return value
+	end
 
 	o = s:option(Flag, option_name("pq_signature_schemes_enabled"), translate("PQ signature schemes"))
 	o.default = "0"
@@ -310,6 +318,7 @@ o = s:option(ListValue, option_name("transport"), translate("Transport"))
 o:value("tcp", "TCP")
 o:value("http", "HTTP")
 o:value("ws", "WebSocket")
+o:value("httpupgrade", "HTTPUpgrade")
 o:value("quic", "QUIC")
 o:value("grpc", "gRPC")
 o:depends({ [option_name("protocol")] = "shadowsocks" })
@@ -333,11 +342,40 @@ o:depends({ [option_name("transport")] = "ws" })
 o = s:option(Value, option_name("ws_path"), translate("WebSocket Path"))
 o:depends({ [option_name("transport")] = "ws" })
 
+-- [[ HTTPUpgrade部分 ]]--
+
+o = s:option(Value, option_name("httpupgrade_host"), translate("HTTPUpgrade Host"))
+o:depends({ [option_name("transport")] = "httpupgrade" })
+
+o = s:option(Value, option_name("httpupgrade_path"), translate("HTTPUpgrade Path"))
+o:depends({ [option_name("transport")] = "httpupgrade" })
+
 -- [[ gRPC部分 ]]--
 o = s:option(Value, option_name("grpc_serviceName"), "ServiceName")
 o:depends({ [option_name("transport")] = "grpc" })
 
-o = s:option(Flag, option_name("bind_local"), translate("Bind Local"), translate("When selected, it can only be accessed locally, It is recommended to turn on when using reverse proxies or be fallback."))
+-- [[ Mux ]]--
+o = s:option(Flag, option_name("mux"), translate("Mux"))
+o.rmempty = false
+o:depends({ [option_name("protocol")] = "vmess" })
+o:depends({ [option_name("protocol")] = "vless", [option_name("flow")] = "" })
+o:depends({ [option_name("protocol")] = "shadowsocks" })
+o:depends({ [option_name("protocol")] = "trojan" })
+
+-- [[ TCP Brutal ]]--
+o = s:option(Flag, option_name("tcpbrutal"), translate("TCP Brutal"))
+o.default = 0
+o:depends({ [option_name("mux")] = true })
+
+o = s:option(Value, option_name("tcpbrutal_up_mbps"), translate("Max upload Mbps"))
+o.default = "10"
+o:depends({ [option_name("tcpbrutal")] = true })
+
+o = s:option(Value, option_name("tcpbrutal_down_mbps"), translate("Max download Mbps"))
+o.default = "50"
+o:depends({ [option_name("tcpbrutal")] = true })
+
+o = s:option(Flag, option_name("bind_local"), translate("Bind Local"), translate("When selected, it can only be accessed localhost."))
 o.default = "0"
 
 o = s:option(Flag, option_name("accept_lan"), translate("Accept LAN Access"), translate("When selected, it can accessed lan , this will not be safe!"))

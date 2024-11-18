@@ -1,5 +1,5 @@
 local api = require "luci.passwall.api"
-local appname = api.appname
+local appname = "passwall"
 local uci = api.uci
 local fs = require "nixio.fs"
 local types_dir = "/usr/lib/lua/luci/model/cbi/passwall/client/type/"
@@ -10,7 +10,6 @@ end
 
 m = Map(appname, translate("Node Config"))
 m.redirect = api.url()
-api.set_apply_on_parse(m)
 
 s = m:section(NamedSection, arg[1], "nodes", "")
 s.addremove = false

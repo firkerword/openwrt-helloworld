@@ -7,6 +7,10 @@ local has_xray = api.finded_com("xray")
 local has_fw3 = api.is_finded("fw3")
 local has_fw4 = api.is_finded("fw4")
 
+local port_validate = function(self, value, t)
+	return value:gsub("-", ":")
+end
+
 m = Map(appname)
 api.set_apply_on_parse(m)
 
@@ -63,6 +67,7 @@ o = s:option(Value, "tcp_no_redir_ports", translate("TCP No Redir Ports"))
 o.default = "disable"
 o:value("disable", translate("No patterns are used"))
 o:value("1:65535", translate("All"))
+o.validate = port_validate
 
 ---- UDP No Redir Ports
 o = s:option(Value, "udp_no_redir_ports", translate("UDP No Redir Ports"),
@@ -72,6 +77,7 @@ o = s:option(Value, "udp_no_redir_ports", translate("UDP No Redir Ports"),
 o.default = "disable"
 o:value("disable", translate("No patterns are used"))
 o:value("1:65535", translate("All"))
+o.validate = port_validate
 
 ---- TCP Redir Ports
 o = s:option(Value, "tcp_redir_ports", translate("TCP Redir Ports"))
@@ -79,11 +85,13 @@ o.default = "22,25,53,143,465,587,853,993,995,80,443"
 o:value("1:65535", translate("All"))
 o:value("22,25,53,143,465,587,853,993,995,80,443", translate("Common Use"))
 o:value("80,443", translate("Only Web"))
+o.validate = port_validate
 
 ---- UDP Redir Ports
 o = s:option(Value, "udp_redir_ports", translate("UDP Redir Ports"))
 o.default = "1:65535"
 o:value("1:65535", translate("All"))
+o.validate = port_validate
 
 ---- Use nftables
 o = s:option(ListValue, "use_nft", translate("Firewall tools"))
@@ -133,30 +141,82 @@ if has_xray then
 	s_xray.anonymous = true
 	s_xray.addremove = false
 
-	o = s_xray:option(Flag, "sniffing", translate("Sniffing"), translate("When using the shunt, must be enabled, otherwise the shunt will invalid."))
-	o.default = 1
-	o.rmempty = false
+	o = s_xray:option(Flag, "fragment", translate("Fragment"), translate("TCP fragments, which can deceive the censorship system in some cases, such as bypassing SNI blacklists."))
+	o.default = 0
+	
+	o = s_xray:option(ListValue, "fragment_packets", translate("Fragment Packets"), translate(" \"1-3\" is for segmentation at TCP layer, applying to the beginning 1 to 3 data writes by the client. \"tlshello\" is for TLS client hello packet fragmentation."))
+	o.default = "tlshello"
+	o:value("tlshello", "tlshello")
+	o:value("1-1", "1-1")
+	o:value("1-2", "1-2")
+	o:value("1-3", "1-3")
+	o:value("1-5", "1-5")
+	o:depends("fragment", true)
+
+	o = s_xray:option(Value, "fragment_length", translate("Fragment Length"), translate("Fragmented packet length (byte)"))
+	o.default = "100-200"
+	o:depends("fragment", true)
+
+	o = s_xray:option(Value, "fragment_interval", translate("Fragment Interval"), translate("Fragmentation interval (ms)"))
+	o.default = "10-20"
+	o:depends("fragment", true)
+
+	o = s_xray:option(Flag, "noise", translate("Noise"), translate("UDP noise, Under some circumstances it can bypass some UDP based protocol restrictions."))
+	o.default = 0
+
+	o = s_xray:option(Flag, "sniffing_override_dest", translate("Override the connection destination address"), translate("Override the connection destination address with the sniffed domain."))
+	o.default = 0
 
 	o = s_xray:option(Flag, "route_only", translate("Sniffing Route Only"))
 	o.default = 0
 	o:depends("sniffing", true)
 
 	local domains_excluded = string.format("/usr/share/%s/domains_excluded", appname)
-	o = s_xray:option(TextValue, "no_sniffing_hosts", translate("No Sniffing Lists"), translate("Hosts added into No Sniffing Lists will not resolve again on server."))
+	o = s_xray:option(TextValue, "excluded_domains", translate("Excluded Domains"), translate("If the traffic sniffing result is in this list, the destination address will not be overridden."))
 	o.rows = 15
 	o.wrap = "off"
 	o.cfgvalue = function(self, section) return fs.readfile(domains_excluded) or "" end
 	o.write = function(self, section, value) fs.writefile(domains_excluded, value:gsub("\r\n", "\n")) end
-	o.remove = function(self, section)
-		local route_only_value = s_xray.fields["route_only"] and s_xray.fields["route_only"]:formvalue(section) or nil
-		if not route_only_value or route_only_value == "0" then
-			fs.writefile(domains_excluded, "")
-		end
-	end
-	o:depends({sniffing = true, route_only = false})
+	o:depends({sniffing_override_dest = true})
 
 	o = s_xray:option(Value, "buffer_size", translate("Buffer Size"), translate("Buffer size for every connection (kB)"))
 	o.datatype = "uinteger"
+
+	s_xray_noise = m:section(TypedSection, "xray_noise_packets", translate("Xray Noise Packets"),"<font color='red'>" .. translate("To send noise packets, select \"Noise\" in Xray Settings.") .. "</font>")
+	s_xray_noise.template = "cbi/tblsection"
+	s_xray_noise.sortable = true
+	s_xray_noise.anonymous = true
+	s_xray_noise.addremove = true
+
+	s_xray_noise.create = function(e, t)
+		TypedSection.create(e, api.gen_short_uuid())
+	end
+
+	s_xray_noise.remove = function(self, section)
+		for k, v in pairs(self.children) do
+			v.rmempty = true
+			v.validate = nil
+		end
+		TypedSection.remove(self, section)
+	end
+
+	o = s_xray_noise:option(Flag, "enabled", translate("Enable"))
+	o.default = 1
+	o.rmempty = false
+
+	o = s_xray_noise:option(ListValue, "type", translate("Type"))
+	o:value("rand", "rand")
+	o:value("str", "str")
+	o:value("base64", "base64")
+
+	o = s_xray_noise:option(Value, "packet", translate("Packet"))
+	o.datatype = "minlength(1)"
+	o.rmempty = false
+
+	o = s_xray_noise:option(Value, "delay", translate("Delay (ms)"))
+	o.datatype = "or(uinteger,portrange)"
+	o.rmempty = false
+
 end
 
 if has_singbox then
@@ -173,8 +233,10 @@ if has_singbox then
 	o.rmempty = false
 
 	o = s:option(Value, "geoip_url", translate("Custom geoip URL"))
-	o.default = "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db"
-	o:value("https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db")
+	o.default = "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.db"
+	o:value("https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.db")
+	o:value("https://github.com/1715173329/sing-geoip/releases/latest/download/geoip.db")
+	o:value("https://github.com/lyc8503/sing-box-rules/releases/latest/download/geoip.db")
 	o.rmempty = false
 
 	o = s:option(Value, "geosite_path", translate("Custom geosite Path"))
@@ -182,9 +244,25 @@ if has_singbox then
 	o.rmempty = false
 
 	o = s:option(Value, "geosite_url", translate("Custom geosite URL"))
-	o.default = "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db"
-	o:value("https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db")
+	o.default = "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.db"
+	o:value("https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.db")
+	o:value("https://github.com/1715173329/sing-geosite/releases/latest/download/geosite.db")
+	o:value("https://github.com/lyc8503/sing-box-rules/releases/latest/download/geosite.db")
 	o.rmempty = false
+
+	o = s:option(Button, "_remove_resource", translate("Remove resource files"))
+	o.description = translate("Sing-Box will automatically download resource files when starting, you can use this feature achieve upgrade resource files.")
+	o.inputstyle = "remove"
+	function o.write(self, section, value)
+		local geoip_path = s.fields["geoip_path"] and s.fields["geoip_path"]:formvalue(section) or nil
+		if geoip_path then
+			os.remove(geoip_path)
+		end
+		local geosite_path = s.fields["geosite_path"] and s.fields["geosite_path"]:formvalue(section) or nil
+		if geosite_path then
+			os.remove(geosite_path)
+		end
+	end
 end
 
 return m

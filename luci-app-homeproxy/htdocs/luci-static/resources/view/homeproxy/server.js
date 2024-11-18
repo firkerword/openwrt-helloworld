@@ -9,6 +9,7 @@
 'require poll';
 'require rpc';
 'require uci';
+'require ui';
 'require view';
 
 'require homeproxy as hp';
@@ -39,6 +40,46 @@ function renderStatus(isRunning) {
 		renderHTML = spanTemp.format('red', _('HomeProxy Server'), _('NOT RUNNING'));
 
 	return renderHTML;
+}
+
+function handleGenKey(option) {
+	var section_id = this.section.section;
+	var type = this.section.getOption('type').formvalue(section_id);
+	var widget = this.map.findElement('id', 'widget.cbid.homeproxy.%s.%s'.format(section_id, option));
+	var password, required_method;
+
+	if (option === 'uuid')
+		required_method = 'uuid';
+	else if (type === 'shadowsocks')
+		required_method = this.section.getOption('shadowsocks_encrypt_method')?.formvalue(section_id);
+
+	switch (required_method) {
+		case 'aes-128-gcm':
+		case '2022-blake3-aes-128-gcm':
+			password = hp.generateRand('base64', 16);
+			break;
+		case 'aes-192-gcm':
+			password = hp.generateRand('base64', 24);
+			break;
+		case 'aes-256-gcm':
+		case 'chacha20-ietf-poly1305':
+		case 'xchacha20-ietf-poly1305':
+		case '2022-blake3-aes-256-gcm':
+		case '2022-blake3-chacha20-poly1305':
+			password = hp.generateRand('base64', 32);
+			break;
+		case 'none':
+			password = '';
+			break;
+		case 'uuid':
+			password = hp.generateRand('uuid');
+			break;
+		default:
+			password = hp.generateRand('hex', 16);
+			break;
+	}
+
+	return widget.value = password;
 }
 
 return view.extend({
@@ -107,6 +148,7 @@ return view.extend({
 			o.value('hysteria2', _('Hysteria2'));
 			o.value('naive', _('NaïveProxy'));
 		}
+		o.value('mixed', _('Mixed'));
 		o.value('shadowsocks', _('Shadowsocks'));
 		o.value('socks', _('Socks'));
 		o.value('trojan', _('Trojan'));
@@ -128,21 +170,33 @@ return view.extend({
 
 		o = s.option(form.Value, 'username', _('Username'));
 		o.depends('type', 'http');
+		o.depends('type', 'mixed');
 		o.depends('type', 'naive');
 		o.depends('type', 'socks');
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'password', _('Password'));
 		o.password = true;
-		o.depends({'type': /^(http|naive|socks)$/, 'username': /[\s\S]/});
+		o.depends({'type': /^(http|mixed|naive|socks)$/, 'username': /[\s\S]/});
 		o.depends('type', 'hysteria2');
 		o.depends('type', 'shadowsocks');
 		o.depends('type', 'trojan');
 		o.depends('type', 'tuic');
+		o.renderWidget = function() {
+			var node = form.Value.prototype.renderWidget.apply(this, arguments);
+
+			(node.querySelector('.control-group') || node).appendChild(E('button', {
+				'class': 'cbi-button cbi-button-apply',
+				'title': _('Generate'),
+				'click': ui.createHandlerFn(this, handleGenKey, this.option)
+			}, [ _('Generate') ]));
+
+			return node;
+		}
 		o.validate = function(section_id, value) {
 			if (section_id) {
 				var type = this.map.lookupOption('type', section_id)[0].formvalue(section_id);
-				var required_type = [ 'http', 'naive', 'socks', 'shadowsocks' ];
+				var required_type = [ 'http', 'mixed', 'naive', 'socks', 'shadowsocks' ];
 
 				if (required_type.includes(type)) {
 					if (type === 'shadowsocks') {
@@ -265,6 +319,17 @@ return view.extend({
 		o.depends('type', 'tuic');
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
+		o.renderWidget = function() {
+			var node = form.Value.prototype.renderWidget.apply(this, arguments);
+
+			(node.querySelector('.control-group') || node).appendChild(E('button', {
+				'class': 'cbi-button cbi-button-apply',
+				'title': _('Generate'),
+				'click': ui.createHandlerFn(this, handleGenKey, this.option)
+			}, [ _('Generate') ]));
+
+			return node;
+		}
 		o.validate = hp.validateUUID;
 		o.modalonly = true;
 
@@ -277,7 +342,7 @@ return view.extend({
 		o.depends('type', 'tuic');
 		o.modalonly = true;
 
-		o = s.option(form.ListValue, 'tuic_auth_timeout', _('Auth timeout'),
+		o = s.option(form.Value, 'tuic_auth_timeout', _('Auth timeout'),
 			_('How long the server should wait for the client to send the authentication command (in seconds).'));
 		o.datatype = 'uinteger';
 		o.default = '3';
@@ -319,8 +384,12 @@ return view.extend({
 		o.value('', _('None'));
 		o.value('grpc', _('gRPC'));
 		o.value('http', _('HTTP'));
+		o.value('httpupgrade', _('HTTPUpgrade'));
 		o.value('quic', _('QUIC'));
 		o.value('ws', _('WebSocket'));
+		o.depends('type', 'trojan');
+		o.depends('type', 'vless');
+		o.depends('type', 'vmess');
 		o.onchange = function(ev, section_id, value) {
 			var desc = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id)).nextElementSibling;
 			if (value === 'http')
@@ -338,9 +407,6 @@ return view.extend({
 				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
 					_('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.');
 		}
-		o.depends('type', 'trojan');
-		o.depends('type', 'vless');
-		o.depends('type', 'vmess');
 		o.modalonly = true;
 
 		/* gRPC config start */
@@ -350,14 +416,20 @@ return view.extend({
 
 		/* gRPC config end */
 
-		/* HTTP config start */
+		/* HTTP(Upgrade) config start */
 		o = s.option(form.DynamicList, 'http_host', _('Host'));
 		o.datatype = 'hostname';
 		o.depends('transport', 'http');
 		o.modalonly = true;
 
+		o = s.option(form.Value, 'httpupgrade_host', _('Host'));
+		o.datatype = 'hostname';
+		o.depends('transport', 'httpupgrade');
+		o.modalonly = true;
+
 		o = s.option(form.Value, 'http_path', _('Path'));
 		o.depends('transport', 'http');
+		o.depends('transport', 'httpupgrade');
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'http_method', _('Method'));
@@ -407,6 +479,41 @@ return view.extend({
 
 		/* Transport config end */
 
+		/* Mux config start */
+		o = s.option(form.Flag, 'multiplex', _('Multiplex'));
+		o.default = o.disabled;
+		o.depends('type', 'shadowsocks');
+		o.depends('type', 'trojan');
+		o.depends('type', 'vless');
+		o.depends('type', 'vmess');
+		o.modalonly = true;
+
+		o = s.option(form.Flag, 'multiplex_padding', _('Enable padding'));
+		o.default = o.disabled;
+		o.depends('multiplex', '1');
+		o.modalonly = true;
+
+		if (features.hp_has_tcp_brutal) {
+			o = s.option(form.Flag, 'multiplex_brutal', _('Enable TCP Brutal'),
+				_('Enable TCP Brutal congestion control algorithm'));
+			o.default = o.disabled;
+			o.depends('multiplex', '1');
+			o.modalonly = true;
+
+			o = s.option(form.Value, 'multiplex_brutal_down', _('Download bandwidth'),
+				_('Download bandwidth in Mbps.'));
+			o.datatype = 'uinteger';
+			o.depends('multiplex_brutal', '1');
+			o.modalonly = true;
+
+			o = s.option(form.Value, 'multiplex_brutal_up', _('Upload bandwidth'),
+				_('Upload bandwidth in Mbps.'));
+			o.datatype = 'uinteger';
+			o.depends('multiplex_brutal', '1');
+			o.modalonly = true;
+		}
+		/* Mux config end */
+
 		/* TLS config start */
 		o = s.option(form.Flag, 'tls', _('TLS'));
 		o.default = o.disabled;
@@ -415,6 +522,7 @@ return view.extend({
 		o.depends('type', 'hysteria2');
 		o.depends('type', 'naive');
 		o.depends('type', 'trojan');
+		o.depends('type', 'tuic');
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
 		o.rmempty = false;
@@ -437,8 +545,7 @@ return view.extend({
 
 		o = s.option(form.Value, 'tls_sni', _('TLS SNI'),
 			_('Used to verify the hostname on the returned certificates unless insecure is given.'));
-		o.depends({'tls': '1', 'tls_reality': '0'});
-		o.depends({'tls': '1', 'tls_reality': null});
+		o.depends('tls', '1');
 		o.modalonly = true;
 
 		o = s.option(form.DynamicList, 'tls_alpn', _('TLS ALPN'),
@@ -462,7 +569,7 @@ return view.extend({
 		o.depends('tls', '1');
 		o.modalonly = true;
 
-		o = s.option(form.MultiValue, 'tls_cipher_suites', _('Cipher suites'),
+		o = s.option(hp.CBIStaticList, 'tls_cipher_suites', _('Cipher suites'),
 			_('The elliptic curves that will be used in an ECDHE handshake, in preference order. If empty, the default will be used.'));
 		for (var i of hp.tls_cipher_suites)
 			o.value(i);
@@ -664,16 +771,21 @@ return view.extend({
 		o.depends({'network': 'udp', '!reverse': true});
 		o.modalonly = true;
 
-		if (features.has_mptcp) {
-			o = s.option(form.Flag, 'tcp_multi_path', _('MultiPath TCP'));
-			o.default = o.disabled;
-			o.depends({'network': 'udp', '!reverse': true});
-			o.modalonly = true;
-		}
+		o = s.option(form.Flag, 'tcp_multi_path', _('MultiPath TCP'));
+		o.default = o.disabled;
+		o.depends({'network': 'udp', '!reverse': true});
+		o.modalonly = true;
 
 		o = s.option(form.Flag, 'udp_fragment', _('UDP Fragment'),
 			_('Enable UDP fragmentation.'));
 		o.default = o.disabled;
+		o.depends({'network': 'tcp', '!reverse': true});
+		o.modalonly = true;
+
+		o = s.option(form.Value, 'udp_timeout', _('UDP NAT expiration time'),
+			_('In seconds. <code>300</code> is used by default.'));
+		o.datatype = 'uinteger';
+		o.default = '300';
 		o.depends({'network': 'tcp', '!reverse': true});
 		o.modalonly = true;
 

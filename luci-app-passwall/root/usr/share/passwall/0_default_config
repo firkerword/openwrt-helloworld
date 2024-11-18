@@ -5,18 +5,24 @@ config global
 	option tcp_node 'nil'
 	option udp_node 'nil'
 	option tcp_node_socks_port '1070'
-	option dns_mode 'dns2tcp'
+	option filter_proxy_ipv6 '1'
+	option dns_shunt 'chinadns-ng'
+	option dns_mode 'tcp'
 	option remote_dns '1.1.1.1'
-	option filter_proxy_ipv6 '0'
-	option when_chnroute_default_dns 'direct'
-	option tcp_proxy_mode 'chnroute'
-	option udp_proxy_mode 'chnroute'
-	option chinadns_ng_default_tag 'smart'
-	option localhost_tcp_proxy_mode 'default'
-	option localhost_udp_proxy_mode 'default'
+	option use_default_dns 'direct'
+	option chinadns_ng_default_tag 'none'
+	option use_direct_list '1'
+	option use_proxy_list '1'
+	option use_block_list '1'
+	option use_gfw_list '1'
+	option chn_list 'direct'
+	option tcp_proxy_mode 'proxy'
+	option udp_proxy_mode 'proxy'
+	option localhost_proxy '1'
+	option client_proxy '1'
 	option acl_enable '0'
-	option close_log_tcp '0'
-	option close_log_udp '0'
+	option log_tcp '1'
+	option log_udp '1'
 	option loglevel 'error'
 	option trojan_loglevel '4'
 
@@ -39,20 +45,20 @@ config global_forwarding
 	option use_nft '0'
 	option tcp_proxy_way 'redirect'
 	option ipv6_tproxy '0'
-	
+
 config global_xray
-	option sniffing '1'
-	option route_only '0'
-	
+	option sniffing_override_dest '0'
+
 config global_singbox
 	option sniff_override_destination '0'
 	option geoip_path '/usr/share/singbox/geoip.db'
-	option geoip_url 'https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db'
+	option geoip_url 'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.db'
 	option geosite_path '/usr/share/singbox/geosite.db'
-	option geosite_url 'https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db'
+	option geosite_url 'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.db'
 
 config global_other
-	option nodes_ping 'auto_ping tcping'
+	option auto_detection_time 'tcping'
+	option show_node_info '0'
 
 config global_rules
 	option auto_update '0'
@@ -69,14 +75,11 @@ config global_rules
 	list chnroute6_url 'https://fastly.jsdelivr.net/gh/gaoyifan/china-operator-ip@ip-lists/china6.txt'
 	list chnlist_url 'https://fastly.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/accelerated-domains.china.conf'
 	list chnlist_url 'https://fastly.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/apple.china.conf'
-	list chnlist_url 'https://fastly.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/google.china.conf'
 	option v2ray_location_asset '/usr/share/v2ray/'
 
 config global_app
 	option singbox_file '/usr/bin/sing-box'
 	option xray_file '/usr/bin/xray'
-	option trojan_go_file '/usr/bin/trojan-go'
-	option brook_file '/usr/bin/brook'
 	option hysteria_file '/usr/bin/hysteria'
 	option chinadns_ng '/usr/bin/chinadns-ng'
 
@@ -93,20 +96,18 @@ config nodes 'myshunt'
 	option protocol '_shunt'
 	option DirectGame '_direct'
 	option ProxyGame '_default'
+	option AIGC '_default'
+	option Streaming '_default'
 	option Proxy '_default'
-	option Netflix '_default'
-	option OpenAI '_default'
 	option Direct '_direct'
 	option default_node 'nil'
 	option domainStrategy 'IPOnDemand'
 
 config shunt_rules 'DirectGame'
 	option remarks 'DirectGame'
-	option domain_list 'api.steampowered.com
-regexp:\.cm.steampowered.com$
+	option domain_list 'regexp:\.cm.steampowered.com$
 regexp:\.steamserver.net$
-geosite:category-games@cn
-'
+geosite:category-games@cn'
 	option ip_list '103.10.124.0/24
 103.10.125.0/24
 103.28.54.0/24
@@ -156,13 +157,17 @@ geosite:category-games@cn
 
 config shunt_rules 'ProxyGame'
 	option remarks 'ProxyGame'
-	option domain_list 'geosite:category-games@!cn
-domain:store.steampowered.com
-'
+	option domain_list 'geosite:category-games
+domain:store.steampowered.com'
 
-config shunt_rules 'OpenAI'
-	option remarks 'OpenAI'
-	option domain_list 'geosite:openai'	
+config shunt_rules 'AIGC'
+	option remarks 'AIGC'
+	option domain_list 'geosite:category-ai-chat-!cn'
+
+config shunt_rules 'Streaming'
+	option remarks 'Streaming'
+	option domain_list 'geosite:netflix
+geosite:disney'
 
 config shunt_rules 'Proxy'
 	option remarks 'Proxy'
@@ -191,16 +196,16 @@ config shunt_rules 'Proxy'
 2606:4700:4700::1111
 2606:4700:4700::1001'
 
-config shunt_rules 'Netflix'
-	option remarks 'Netflix'
-	option domain_list 'geosite:netflix'
-
 config shunt_rules 'Direct'
 	option remarks 'Direct'
 	option domain_list 'geosite:cn'
 	option ip_list '223.5.5.5/32
+223.6.6.6/32
 119.29.29.29/32
 180.76.76.76/32
 114.114.114.114/32
+114.114.115.115/32
+1.12.12.12/32
+120.53.53.53/32
 geoip:cn
 geoip:private'

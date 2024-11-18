@@ -11,6 +11,7 @@ on:
       - 'root/**'
       - 'Makefile'
       - '.github/**'
+      - '!.github/ISSUE_TEMPLATE/**'
 
   pull_request:
     branches:
@@ -25,6 +26,7 @@ on:
       - 'root/**'
       - 'Makefile'
       - '.github/**'
+      - '!.github/ISSUE_TEMPLATE/**'
 
   release:
     types:
@@ -36,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout source tree
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build ipk file
         env:
@@ -48,17 +50,16 @@ jobs:
           popd
 
       - name: Publishing to GitHub Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: github.event_name != 'release'
         with:
           name: ${{ env.ASSET_NAME }}
-          path: .github/*.ipk
+          path: .github/${{ env.ASSET_NAME }}
 
       - name: Publishing to GitHub Releases
-        uses: floralatin/upload-release-action@3688e13ae053ba3052eb4f0cfe03e78deb8f88d7
+        uses: svenstaro/upload-release-action@v2
         if: github.event_name == 'release'
         with:
           repo_token: ${{ github.token }}
-          file: .github/*.ipk
+          file: .github/${{ env.ASSET_NAME }}
           tag: ${{ github.ref }}
-          file_glob: true

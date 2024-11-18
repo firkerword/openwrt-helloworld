@@ -42,6 +42,9 @@ if auto_switch_tip then
 	socks_node.description = auto_switch_tip
 end
 
+o = s:option(Flag, "bind_local", translate("Bind Local"), translate("When selected, it can only be accessed localhost."))
+o.default = "0"
+
 local n = 1
 uci:foreach(appname, "socks", function(s)
 	if s[".name"] == section then
@@ -60,6 +63,10 @@ if has_singbox or has_xray then
 	o.default = 0
 	o.datatype = "port"
 end
+
+o = s:option(Flag, "log", translate("Enable") .. " " .. translate("Log"))
+o.default = 1
+o.rmempty = false
 
 o = s:option(Flag, "enable_autoswitch", translate("Auto Switch"))
 o.default = 0
