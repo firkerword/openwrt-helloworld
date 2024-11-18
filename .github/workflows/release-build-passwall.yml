@@ -53,13 +53,13 @@ jobs:
         run: curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❤️恭喜主人passwall-${{ matrix.arch }}.ipk编译完成！%0A编译时间：$(TZ='Asia/Shanghai' date +%Y年%m月%d日)%0A下载地址：https://github.com/firkerword/openwrt-helloworld/releases/tag/passwall-smartdns"
 
       - name: Old workflow
-        uses: FunctionXJB/delete-workflow-runs@main
+        uses: Mattraks/delete-workflow-runs@v2
         with:
           retain_days: 180
           keep_minimum_runs: 10
 
       - name: Old Releases
-        uses: dev-drprasad/delete-older-releases@v0.2.1
+        uses: dev-drprasad/delete-older-releases@v0.3.2
         if: env.UPLOAD_RELEASE == 'true' && !cancelled()
         with:
           keep_latest: 20
