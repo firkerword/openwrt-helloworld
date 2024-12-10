@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=geoview
-PKG_VERSION:=0.0.8
+PKG_VERSION:=0.1.0
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/snowie2000/geoview/tar.gz/$(PKG_VERSION)?
-PKG_HASH:=1d94d2f251505fd5da8e03de6aba5722554e199b0873de28ecd7be62538aad60
+PKG_HASH:=f957ccda8177657ce386c2a823cdf0d2746a0c03ce2e1a767cf9da12dccc476b
 
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
@@ -32,7 +32,7 @@ define geoview/templates
     SECTION:=net
     CATEGORY:=Network
     SUBMENU:=Web Servers/Proxies
-    DEPENDS:=$$(GO_ARCH_DEPENDS)
+    DEPENDS+= $$(GO_ARCH_DEPENDS)
   endef
 
   define Package/$(1)/description
@@ -43,16 +43,11 @@ define geoview/templates
 
   define Package/$(1)/install
 	$$(call GoPackage/Package/Install/Bin,$$(PKG_INSTALL_DIR))
-
 	$$(INSTALL_DIR) $$(1)/usr/bin
 	$$(INSTALL_BIN) $$(PKG_INSTALL_DIR)/usr/bin/$(1) $$(1)/usr/bin/
   endef
 endef
 
-GEOVIEW_COMPONENTS:=geoview
-
-$(foreach component,$(GEOVIEW_COMPONENTS), \
-  $(eval $(call geoview/templates,$(component))) \
-  $(eval $(call GoBinPackage,$(component))) \
-  $(eval $(call BuildPackage,$(component))) \
-)
+$(eval $(call geoview/templates,geoview))
+$(eval $(call GoBinPackage,geoview))
+$(eval $(call BuildPackage,geoview))
