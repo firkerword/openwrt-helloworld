@@ -612,8 +612,15 @@ function gen_config(var)
 			port = tonumber(local_socks_port),
 			protocol = "socks",
 			settings = {auth = "noauth", udp = true},
-			sniffing = {enabled = true, destOverride = {"http", "tls", "quic"}}
+			sniffing = {
+				enabled = xray_settings.sniffing_override_dest == "1" or node.protocol == "_shunt"
+			}
 		}
+		if inbound.sniffing.enabled == true then
+			inbound.sniffing.destOverride = {"http", "tls", "quic"}
+			inbound.sniffing.routeOnly = xray_settings.sniffing_override_dest ~= "1" or nil
+			inbound.sniffing.domainsExcluded = xray_settings.sniffing_override_dest == "1" and get_domain_excluded() or nil
+		end
 		if local_socks_username and local_socks_password and local_socks_username ~= "" and local_socks_password ~= "" then
 			inbound.settings.auth = "password"
 			inbound.settings.accounts = {
@@ -651,13 +658,16 @@ function gen_config(var)
 			settings = {network = "tcp,udp", followRedirect = true},
 			streamSettings = {sockopt = {tproxy = "tproxy"}},
 			sniffing = {
-				enabled = xray_settings.sniffing_override_dest == "1" or node.protocol == "_shunt",
-				destOverride = {"http", "tls", "quic", (remote_dns_fake) and "fakedns"},
-				metadataOnly = false,
-				routeOnly = node.protocol == "_shunt" and xray_settings.sniffing_override_dest ~= "1" or nil,
-				domainsExcluded = xray_settings.sniffing_override_dest == "1" and get_domain_excluded() or nil
+				enabled = xray_settings.sniffing_override_dest == "1" or node.protocol == "_shunt"
 			}
 		}
+		if inbound.sniffing.enabled == true then
+			inbound.sniffing.destOverride = {"http", "tls", "quic", (remote_dns_fake) and "fakedns"}
+			inbound.sniffing.metadataOnly = false
+			inbound.sniffing.routeOnly = xray_settings.sniffing_override_dest ~= "1" or nil
+			inbound.sniffing.domainsExcluded = xray_settings.sniffing_override_dest == "1" and get_domain_excluded() or nil
+		end
+
 		local tcp_inbound = api.clone(inbound)
 		tcp_inbound.tag = "tcp_redir"
 		tcp_inbound.settings.network = "tcp"
@@ -1395,6 +1405,11 @@ function gen_config(var)
 				string.gsub(direct_ipset, '[^' .. "," .. ']+', function(w)
 					sys.call("ipset -q -F " .. w)
 				end)
+				local ipset_prefix_name = "passwall2_" .. node_id .. "_"
+				local ipset_list = sys.exec("ipset list | grep 'Name: ' | grep '" .. ipset_prefix_name .. "' | awk '{print $2}'")
+				string.gsub(ipset_list, '[^' .. "\r\n" .. ']+', function(w)
+					sys.call("ipset -q -F " .. w)
+				end)
 			end
 			if direct_nftset then
 				string.gsub(direct_nftset, '[^' .. "," .. ']+', function(w)
@@ -1406,6 +1421,13 @@ function gen_config(var)
 						local set_name = split[4]
 						sys.call(string.format("nft flush set %s %s %s 2>/dev/null", family, table_name, set_name))
 					end
+				end)
+				local family = "inet"
+				local table_name = "passwall2"
+				local nftset_prefix_name = "passwall2_" .. node_id .. "_"
+				local nftset_list = sys.exec("nft -a list sets | grep -E '" .. nftset_prefix_name .. "' | awk -F 'set ' '{print $2}' | awk '{print $1}'")
+				string.gsub(nftset_list, '[^' .. "\r\n" .. ']+', function(w)
+					sys.call(string.format("nft flush set %s %s %s 2>/dev/null", family, table_name, w))
 				end)
 			end
 		end

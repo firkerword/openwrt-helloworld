@@ -223,9 +223,6 @@ msgstr "需要代理的分流规则域名使用 FakeDNS。"
 msgid "Redirect"
 msgstr "重定向"
 
-msgid "Force Router DNS server to all local devices."
-msgstr "强制所有本地设备使用路由器 DNS。"
-
 msgid "Clear IPSET"
 msgstr "清空 IPSET"
 
@@ -1645,6 +1642,9 @@ msgstr "握手服务器"
 msgid "Handshake Server Port"
 msgstr "握手服务器端口"
 
+msgid "Override the connection destination address with the sniffed domain.<br />Otherwise use sniffed domain for routing only.<br />If using shunt nodes, configure the domain shunt rules correctly."
+msgstr "用探测出的域名覆盖连接目标地址。<br />否则仅将探测得到的域名用于路由。<br />如使用分流节点，请正确设置域名分流规则。"
+
 msgid "Override the connection destination address with the sniffed domain.<br />When enabled, traffic will match only by domain, ignoring IP rules.<br />If using shunt nodes, configure the domain shunt rules correctly."
 msgstr "用探测出的域名覆盖连接目标地址。<br />启用后仅使用域名进行流量匹配，将忽略IP规则。<br />如使用分流节点，请正确设置域名分流规则。"
 
@@ -1725,3 +1725,9 @@ msgstr "与使用 %s 节点时生效。"
 
 msgid "Set the default domain resolution strategy for the sing-box node."
 msgstr "为 sing-box 节点设置默认的域名解析策略。"
+
+msgid "Total Lines"
+msgstr "总行数："
+
+msgid "Read List"
+msgstr "读取列表"

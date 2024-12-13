@@ -166,7 +166,7 @@ if has_xray then
 
 	o = s_xray:option(Flag, "sniffing_override_dest", translate("Override the connection destination address"))
 	o.default = 0
-	o.description = translate("Override the connection destination address with the sniffed domain.<br />When enabled, traffic will match only by domain, ignoring IP rules.<br />If using shunt nodes, configure the domain shunt rules correctly.")
+	o.description = translate("Override the connection destination address with the sniffed domain.<br />Otherwise use sniffed domain for routing only.<br />If using shunt nodes, configure the domain shunt rules correctly.")
 
 	o = s_xray:option(Flag, "route_only", translate("Sniffing Route Only"))
 	o.default = 0
@@ -259,6 +259,7 @@ if has_singbox then
 		local geoip_path = s.fields["geoip_path"] and s.fields["geoip_path"]:formvalue(section) or nil
 		if geoip_path then
 			os.remove(geoip_path)
+			luci.sys.call("rm -f /tmp/etc/passwall2_tmp/geoip-*.json")
 		end
 		local geosite_path = s.fields["geosite_path"] and s.fields["geosite_path"]:formvalue(section) or nil
 		if geosite_path then

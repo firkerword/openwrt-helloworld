@@ -59,7 +59,7 @@ jobs:
 
       - name: Generate new tag & release
         if: steps.check_version.outputs.has_update == 'true'
-        uses: softprops/action-gh-release@master
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -154,7 +154,7 @@ jobs:
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
 
       - name: Upload passwall2 ipks to release
-        uses: softprops/action-gh-release@master
+        uses: softprops/action-gh-release@v2
         if: steps.compile.outputs.status == 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -283,7 +283,6 @@ jobs:
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Simple_Obfs=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_SingBox=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_tuic_client=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_V2ray_Geoview=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_V2ray_Plugin=y" >> .config
 
           make defconfig
@@ -299,6 +298,7 @@ jobs:
         id: compile
         run: |
           cd sdk
+          make package/feeds/passwall_packages/chinadns-ng/compile -j1 2>/dev/null
           make package/feeds/passwall_packages/tcping/compile -j1 2>/dev/null
           make package/feeds/passwall_packages/xray-core/compile -j1 2>/dev/null
           make package/feeds/passwall_packages/v2ray-geodata/compile -j1 2>/dev/null
@@ -341,7 +341,7 @@ jobs:
           echo "**package name**|**package version**" >> release.txt
           echo "-|-" >> release.txt
 
-          pkgs=$(ls feeds/passwall_packages -I v2ray-geodata | grep -E "tcping|xray-core|hysteria|naiveproxy|shadowsocks-rust|shadowsocksr-libev|simple-obfs|sing-box|tuic-client|v2ray-geoview|v2ray-plugin")
+          pkgs=$(ls feeds/passwall_packages -I v2ray-geodata | grep -E "chinadns-ng|tcping|xray-core|hysteria|naiveproxy|shadowsocks-rust|shadowsocksr-libev|simple-obfs|sing-box|tuic-client|v2ray-geoview|v2ray-plugin")
           for pkg in $pkgs; do
             version=$(awk -F ':=' '/PKG_VERSION:=/{print $2}' feeds/passwall_packages/$pkg/Makefile | sed 's/\r//g')
             [ -z "${version}" ] && version=$(awk -F ':=' '/PKG_SOURCE_DATE:=/{print $2}' feeds/passwall_packages/$pkg/Makefile | sed 's/\r//g')
@@ -354,7 +354,7 @@ jobs:
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Upload firmware to release
-        uses: softprops/action-gh-release@master
+        uses: softprops/action-gh-release@v2
         if: steps.info.outputs.status == 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
