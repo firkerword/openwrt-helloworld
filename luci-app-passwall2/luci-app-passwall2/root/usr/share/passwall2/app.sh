@@ -990,12 +990,11 @@ run_copy_dnsmasq() {
 	mkdir -p $dnsmasq_conf_path
 	[ -s "/tmp/etc/dnsmasq.conf.${DEFAULT_DNSMASQ_CFGID}" ] && {
 		cp -r /tmp/etc/dnsmasq.conf.${DEFAULT_DNSMASQ_CFGID} $dnsmasq_conf
+		sed -i "/passwall2/d" $dnsmasq_conf
 		sed -i "/ubus/d" $dnsmasq_conf
 		sed -i "/dhcp/d" $dnsmasq_conf
 		sed -i "/port=/d" $dnsmasq_conf
-		sed -i "/conf-dir/d" $dnsmasq_conf
-		sed -i "/no-poll/d" $dnsmasq_conf
-		sed -i "/no-resolv/d" $dnsmasq_conf
+		sed -i "/server=/d" $dnsmasq_conf
 	}
 	local set_type="ipset"
 	[ "${nftflag}" = "1" ] && {
@@ -1010,6 +1009,7 @@ run_copy_dnsmasq() {
 		no-poll
 		no-resolv
 	EOF
+	awk '!seen[$0]++' $dnsmasq_conf > /tmp/dnsmasq.tmp && mv /tmp/dnsmasq.tmp $dnsmasq_conf
 	node_servers=$(uci show "${CONFIG}" | grep -E "(.address=|.download_address=)" | cut -d "'" -f 2)
 	hosts_foreach "node_servers" host_from_url | grep '[a-zA-Z]$' | sort -u | grep -v "engage.cloudflareclient.com" | gen_dnsmasq_items settype="${set_type}" setnames="${setflag_4}passwall2_vpslist,${setflag_6}passwall2_vpslist6" dnss="${LOCAL_DNS:-${AUTO_DNS}}" outf="${dnsmasq_conf_path}/10-vpslist_host.conf" ipsetoutf="${dnsmasq_conf_path}/ipset.conf"
 	ln_run "$(first_type dnsmasq)" "dnsmasq_${flag}" "/dev/null" -C $dnsmasq_conf -x $TMP_ACL_PATH/$flag/dnsmasq.pid
@@ -1079,8 +1079,7 @@ acl_app() {
 		local ipt_tmp msg msg2
 		redir_port=11200
 		dns_port=11300
-		dnsmasq_port=11400
-		[ -n "${GLOBAL_DNSMASQ_PORT}" ] && dnsmasq_port=$(get_new_port $GLOBAL_DNSMASQ_PORT)
+		dnsmasq_port=${GLOBAL_DNSMASQ_PORT:-11400}
 		for item in $items; do
 			index=$(expr $index + 1)
 			local enabled sid remarks sources node direct_dns_query_strategy remote_dns_protocol remote_dns remote_dns_doh remote_dns_client_ip remote_dns_detour remote_fakedns remote_dns_query_strategy interface use_interface
@@ -1211,6 +1210,13 @@ start() {
 		[ "$(expr $dnsmasq_version \>= 2.90)" == 0 ] && echolog "Dnsmasq版本低于2.90，建议升级至2.90及以上版本以避免部分情况下Dnsmasq崩溃问题！"
 	}
 
+	if [ "$ENABLED_DEFAULT_ACL" == 1 ] || [ "$ENABLED_ACLS" == 1 ]; then
+		[ "$(uci -q get dhcp.@dnsmasq[0].dns_redirect)" == "1" ] && {
+			uci -q set dhcp.@dnsmasq[0].dns_redirect='0' 2>/dev/null
+			uci commit dhcp 2>/dev/null
+			/etc/init.d/dnsmasq restart >/dev/null 2>&1
+		}
+	fi
 	[ "$ENABLED_DEFAULT_ACL" == 1 ] && run_global
 	[ -n "$USE_TABLES" ] && source $APP_PATH/${USE_TABLES}.sh start
 	if [ "$ENABLED_DEFAULT_ACL" == 1 ] || [ "$ENABLED_ACLS" == 1 ]; then
