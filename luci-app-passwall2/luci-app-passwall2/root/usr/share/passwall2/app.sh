@@ -12,6 +12,7 @@ TMP_ROUTE_PATH=$TMP_PATH/route
 TMP_ACL_PATH=$TMP_PATH/acl
 TMP_IFACE_PATH=$TMP_PATH/iface
 TMP_PATH2=/tmp/etc/${CONFIG}_tmp
+GLOBAL_ACL_PATH=${TMP_ACL_PATH}/default
 LOG_FILE=/tmp/log/$CONFIG.log
 APP_PATH=/usr/share/$CONFIG
 RULES_PATH=/usr/share/${CONFIG}/rules
@@ -373,15 +374,15 @@ run_xray() {
 		[ "${write_ipset_direct}" = "1" ] && {
 			direct_dnsmasq_listen_port=$(get_new_port $(expr $dns_listen_port + 1) udp)
 			local set_flag="${flag}"
-			local direct_ipset_conf=${TMP_ACL_PATH}/default/dns_${flag}_direct.conf
+			local direct_ipset_conf=${GLOBAL_ACL_PATH}/dns_${flag}_direct.conf
 			[ -n "$(echo ${flag} | grep '^acl')" ] && {
 				direct_ipset_conf=${TMP_ACL_PATH}/${sid}/dns_${flag}_direct.conf
 				set_flag=$(echo ${flag} | awk -F '_' '{print $2}')
 			}
 			if [ "${nftflag}" = "1" ]; then
-				local direct_nftset="4#inet#passwall2#passwall2_${set_flag}_whitelist,6#inet#passwall2#passwall2_${set_flag}_whitelist6"
+				local direct_nftset="4#inet#passwall2#passwall2_${set_flag}_white,6#inet#passwall2#passwall2_${set_flag}_white6"
 			else
-				local direct_ipset="passwall2_${set_flag}_whitelist,passwall2_${set_flag}_whitelist6"
+				local direct_ipset="passwall2_${set_flag}_white,passwall2_${set_flag}_white6"
 			fi
 			run_ipset_dns_server listen_port=${direct_dnsmasq_listen_port} server_dns=${AUTO_DNS} ipset="${direct_ipset}" nftset="${direct_nftset}" config_file=${direct_ipset_conf}
 			DIRECT_DNS_UDP_PORT=${direct_dnsmasq_listen_port}
@@ -487,15 +488,15 @@ run_singbox() {
 		[ "${write_ipset_direct}" = "1" ] && {
 			direct_dnsmasq_listen_port=$(get_new_port $(expr $dns_listen_port + 1) udp)
 			local set_flag="${flag}"
-			local direct_ipset_conf=${TMP_ACL_PATH}/default/dns_${flag}_direct.conf
+			local direct_ipset_conf=${GLOBAL_ACL_PATH}/dns_${flag}_direct.conf
 			[ -n "$(echo ${flag} | grep '^acl')" ] && {
 				direct_ipset_conf=${TMP_ACL_PATH}/${sid}/dns_${flag}_direct.conf
 				set_flag=$(echo ${flag} | awk -F '_' '{print $2}')
 			}
 			if [ "${nftflag}" = "1" ]; then
-				local direct_nftset="4#inet#passwall2#passwall2_${set_flag}_whitelist,6#inet#passwall2#passwall2_${set_flag}_whitelist6"
+				local direct_nftset="4#inet#passwall2#passwall2_${set_flag}_white,6#inet#passwall2#passwall2_${set_flag}_white6"
 			else
-				local direct_ipset="passwall2_${set_flag}_whitelist,passwall2_${set_flag}_whitelist6"
+				local direct_ipset="passwall2_${set_flag}_white,passwall2_${set_flag}_white6"
 			fi
 			run_ipset_dns_server listen_port=${direct_dnsmasq_listen_port} server_dns=${AUTO_DNS} ipset="${direct_ipset}" nftset="${direct_nftset}" config_file=${direct_ipset_conf}
 			DIRECT_DNS_UDP_PORT=${direct_dnsmasq_listen_port}
@@ -708,7 +709,7 @@ run_global() {
 	[ -z "$NODE" ] && return 1
 	TYPE=$(echo $(config_n_get $NODE type) | tr 'A-Z' 'a-z')
 	[ -z "$TYPE" ] && return 1
-	mkdir -p $TMP_ACL_PATH/default
+	mkdir -p ${GLOBAL_ACL_PATH}
 
 	if [ $PROXY_IPV6 == "1" ]; then
 		echolog "开启实验性IPv6透明代理(TProxy)，请确认您的节点及类型支持IPv6！"
@@ -746,8 +747,8 @@ run_global() {
 	msg="${msg}）"
 	echolog ${msg}
 
-	V2RAY_CONFIG=$TMP_ACL_PATH/default/global.json
-	V2RAY_LOG=$TMP_ACL_PATH/default/global.log
+	V2RAY_CONFIG=${GLOBAL_ACL_PATH}/global.json
+	V2RAY_LOG=${GLOBAL_ACL_PATH}/global.log
 	[ "$(config_t_get global log_node 1)" != "1" ] && V2RAY_LOG="/dev/null"
 	V2RAY_ARGS="${V2RAY_ARGS} log_file=${V2RAY_LOG} config_file=${V2RAY_CONFIG}"
 
@@ -774,9 +775,35 @@ run_global() {
 	
 	${run_func} $V2RAY_ARGS
 
-	GLOBAL_DNSMASQ_PORT=$(get_new_port 11400)
-	run_copy_dnsmasq flag="default" listen_port=$GLOBAL_DNSMASQ_PORT tun_dns="${TUN_DNS}"
-	DNS_REDIRECT_PORT=${GLOBAL_DNSMASQ_PORT}
+	local RUN_NEW_DNSMASQ=1
+	RUN_NEW_DNSMASQ=${DNS_REDIRECT}
+	if [ "${RUN_NEW_DNSMASQ}" == "0" ]; then
+		#The old logic will be removed in the future.
+		#Run a copy dnsmasq instance, DNS hijack that don't need a proxy devices.
+		[ "1" = "0" ] && {
+			DIRECT_DNSMASQ_PORT=$(get_new_port 11400)
+			DIRECT_DNSMASQ_CONF=${GLOBAL_ACL_PATH}/direct_dnsmasq.conf
+			DIRECT_DNSMASQ_CONF_PATH=${GLOBAL_ACL_PATH}/direct_dnsmasq.d
+			mkdir -p ${DIRECT_DNSMASQ_CONF_PATH}
+			lua $APP_PATH/helper_dnsmasq.lua copy_instance -LISTEN_PORT ${DIRECT_DNSMASQ_PORT} -DNSMASQ_CONF ${DIRECT_DNSMASQ_CONF} -TMP_DNSMASQ_PATH ${DIRECT_DNSMASQ_CONF_PATH}
+			ln_run "$(first_type dnsmasq)" "dnsmasq_direct" "/dev/null" -C ${DIRECT_DNSMASQ_CONF} -x ${GLOBAL_ACL_PATH}/direct_dnsmasq.pid
+			set_cache_var "DIRECT_DNSMASQ_PORT" "${DIRECT_DNSMASQ_PORT}"
+		}
+		
+		#Rewrite the default DNS service configuration
+		#Modify the default dnsmasq service
+		lua $APP_PATH/helper_dnsmasq.lua stretch
+		lua $APP_PATH/helper_dnsmasq.lua add_rule -FLAG "default" -TMP_DNSMASQ_PATH ${GLOBAL_DNSMASQ_CONF_PATH} -DNSMASQ_CONF_FILE ${GLOBAL_DNSMASQ_CONF} \
+			-DEFAULT_DNS ${AUTO_DNS} -LOCAL_DNS ${LOCAL_DNS:-${AUTO_DNS}} -TUN_DNS ${TUN_DNS} \
+			-NFTFLAG ${nftflag:-0} \
+			-NO_LOGIC_LOG ${NO_LOGIC_LOG:-0}
+		lua $APP_PATH/helper_dnsmasq.lua logic_restart -LOG 1
+	else
+		#Run a copy dnsmasq instance, DNS hijack for that need proxy devices.
+		GLOBAL_DNSMASQ_PORT=$(get_new_port 11400)
+		run_copy_dnsmasq flag="default" listen_port=$GLOBAL_DNSMASQ_PORT tun_dns="${TUN_DNS}"
+		DNS_REDIRECT_PORT=${GLOBAL_DNSMASQ_PORT}
+	fi
 
 	set_cache_var "ACL_GLOBAL_node" "$NODE"
 	set_cache_var "ACL_GLOBAL_redir_port" "$REDIR_PORT"
@@ -991,37 +1018,8 @@ start_haproxy() {
 	[ "$(config_t_get global_haproxy balancing_enable 0)" != "1" ] && return
 	haproxy_path=$TMP_PATH/haproxy
 	haproxy_conf="config.cfg"
-	lua $APP_PATH/haproxy.lua -path ${haproxy_path} -conf ${haproxy_conf} -dns ${LOCAL_DNS}
+	lua $APP_PATH/haproxy.lua -path ${haproxy_path} -conf ${haproxy_conf} -dns ${LOCAL_DNS:-${AUTO_DNS}}
 	ln_run "$(first_type haproxy)" haproxy "/dev/null" -f "${haproxy_path}/${haproxy_conf}"
-}
-
-run_ipset_dns_server() {
-	if [ -n "$(first_type chinadns-ng)" ]; then
-		run_ipset_chinadns_ng $@
-	else
-		run_ipset_dnsmasq $@
-	fi
-}
-
-gen_dnsmasq_items() {
-	local dnss settype setnames outf ipsetoutf
-	eval_set_val $@
-	
-	awk -v dnss="${dnss}" -v settype="${settype}" -v setnames="${setnames}" -v outf="${outf}" -v ipsetoutf="${ipsetoutf}" '
-		BEGIN {
-			if(outf == "") outf="/dev/stdout";
-			if(ipsetoutf == "") ipsetoutf=outf;
-			split(dnss, dns, ","); setdns=length(dns)>0; setlist=length(setnames)>0;
-			if(setdns) for(i in dns) if(length(dns[i])==0) delete dns[i];
-			fail=1;
-		}
-		! /^$/&&!/^#/ {
-			fail=0
-			if(setdns) for(i in dns) printf("server=/.%s/%s\n", $0, dns[i]) >>outf;
-			if(setlist) printf("%s=/.%s/%s\n", settype, $0, setnames) >>ipsetoutf;
-		}
-		END {fflush(outf); close(outf); fflush(ipsetoutf); close(ipsetoutf); exit(fail);}
-	'
 }
 
 run_copy_dnsmasq() {
@@ -1030,32 +1028,21 @@ run_copy_dnsmasq() {
 	local dnsmasq_conf=$TMP_ACL_PATH/$flag/dnsmasq.conf
 	local dnsmasq_conf_path=$TMP_ACL_PATH/$flag/dnsmasq.d
 	mkdir -p $dnsmasq_conf_path
-	[ -s "/tmp/etc/dnsmasq.conf.${DEFAULT_DNSMASQ_CFGID}" ] && {
-		cp -r /tmp/etc/dnsmasq.conf.${DEFAULT_DNSMASQ_CFGID} $dnsmasq_conf
-		sed -i "/passwall2/d" $dnsmasq_conf
-		sed -i "/ubus/d" $dnsmasq_conf
-		sed -i "/dhcp/d" $dnsmasq_conf
-		sed -i "/port=/d" $dnsmasq_conf
-		sed -i "/server=/d" $dnsmasq_conf
-	}
-	local set_type="ipset"
-	[ "${nftflag}" = "1" ] && {
-		set_type="nftset"
-		local setflag_4="4#inet#passwall2#"
-		local setflag_6="6#inet#passwall2#"
-	}
-	cat <<-EOF >> $dnsmasq_conf
-		port=${listen_port}
-		conf-dir=${dnsmasq_conf_path}
-		server=${tun_dns}
-		no-poll
-		no-resolv
-	EOF
-	awk '!seen[$0]++' $dnsmasq_conf > /tmp/dnsmasq.tmp && mv /tmp/dnsmasq.tmp $dnsmasq_conf
-	node_servers=$(uci show "${CONFIG}" | grep -E "(.address=|.download_address=)" | cut -d "'" -f 2)
-	hosts_foreach "node_servers" host_from_url | grep '[a-zA-Z]$' | sort -u | grep -v "engage.cloudflareclient.com" | gen_dnsmasq_items settype="${set_type}" setnames="${setflag_4}passwall2_vpslist,${setflag_6}passwall2_vpslist6" dnss="${LOCAL_DNS:-${AUTO_DNS}}" outf="${dnsmasq_conf_path}/10-vpslist_host.conf" ipsetoutf="${dnsmasq_conf_path}/ipset.conf"
+	lua $APP_PATH/helper_dnsmasq.lua copy_instance -LISTEN_PORT ${listen_port} -DNSMASQ_CONF ${dnsmasq_conf}
+	lua $APP_PATH/helper_dnsmasq.lua add_rule -FLAG "${flag}" -TMP_DNSMASQ_PATH ${dnsmasq_conf_path} -DNSMASQ_CONF_FILE ${dnsmasq_conf} \
+		-DEFAULT_DNS ${AUTO_DNS} -LOCAL_DNS ${LOCAL_DNS:-${AUTO_DNS}} -TUN_DNS ${tun_dns} \
+		-NFTFLAG ${nftflag:-0} \
+		-NO_LOGIC_LOG ${NO_LOGIC_LOG:-0}
 	ln_run "$(first_type dnsmasq)" "dnsmasq_${flag}" "/dev/null" -C $dnsmasq_conf -x $TMP_ACL_PATH/$flag/dnsmasq.pid
 	set_cache_var "ACL_${flag}_dns_port" "${listen_port}"
+}
+
+run_ipset_dns_server() {
+	if [ -n "$(first_type chinadns-ng)" ]; then
+		run_ipset_chinadns_ng $@
+	else
+		run_ipset_dnsmasq $@
+	fi
 }
 
 run_ipset_chinadns_ng() {
@@ -1068,11 +1055,11 @@ run_ipset_chinadns_ng() {
 	
 	[ -n "${ipset}" ] && {
 		set_names=$ipset
-		vps_set_names="passwall2_vpslist,passwall2_vpslist6"
+		vps_set_names="passwall2_vps,passwall2_vps6"
 	}
 	[ -n "${nftset}" ] && {
 		set_names=$(echo ${nftset} | awk -F, '{printf "%s,%s", substr($1,3), substr($2,3)}' | sed 's/#/@/g')
-		vps_set_names="inet@passwall2@passwall2_vpslist,inet@passwall2@passwall2_vpslist6"
+		vps_set_names="inet@passwall2@passwall2_vps,inet@passwall2@passwall2_vps6"
 	}
 	cat <<-EOF > $config_file
 		bind-addr 127.0.0.1
@@ -1268,9 +1255,11 @@ start() {
 
 	if [ "$ENABLED_DEFAULT_ACL" == 1 ] || [ "$ENABLED_ACLS" == 1 ]; then
 		[ "$(uci -q get dhcp.@dnsmasq[0].dns_redirect)" == "1" ] && {
-			uci -q set dhcp.@dnsmasq[0].dns_redirect='0' 2>/dev/null
-			uci commit dhcp 2>/dev/null
-			/etc/init.d/dnsmasq restart >/dev/null 2>&1
+			uci -q set ${CONFIG}.@global[0].dnsmasq_dns_redirect='1'
+			uci -q commit ${CONFIG}
+			uci -q set dhcp.@dnsmasq[0].dns_redirect='0'
+			uci -q commit dhcp
+			lua $APP_PATH/helper_dnsmasq.lua restart -LOG 0
 		}
 	fi
 	[ "$ENABLED_DEFAULT_ACL" == 1 ] && run_global
@@ -1278,11 +1267,11 @@ start() {
 	set_cache_var "USE_TABLES" "$USE_TABLES"
 	if [ "$ENABLED_DEFAULT_ACL" == 1 ] || [ "$ENABLED_ACLS" == 1 ]; then
 		bridge_nf_ipt=$(sysctl -e -n net.bridge.bridge-nf-call-iptables)
-		set_cache_var "origin_bridge_nf_ipt" "$bridge_nf_ipt"
+		set_cache_var "bak_bridge_nf_ipt" "$bridge_nf_ipt"
 		sysctl -w net.bridge.bridge-nf-call-iptables=0 >/dev/null 2>&1
 		[ "$PROXY_IPV6" == "1" ] && {
 			bridge_nf_ip6t=$(sysctl -e -n net.bridge.bridge-nf-call-ip6tables)
-			set_cache_var "origin_bridge_nf_ip6t" "$bridge_nf_ip6t"
+			set_cache_var "bak_bridge_nf_ip6t" "$bridge_nf_ip6t"
 			sysctl -w net.bridge.bridge-nf-call-ip6tables=0 >/dev/null 2>&1
 		}
 	fi
@@ -1301,10 +1290,25 @@ stop() {
 	unset V2RAY_LOCATION_ASSET
 	unset XRAY_LOCATION_ASSET
 	stop_crontab
-	origin_bridge_nf_ipt=$(get_cache_var "origin_bridge_nf_ipt")
-	[ -n "${origin_bridge_nf_ipt}" ] && sysctl -w net.bridge.bridge-nf-call-iptables=${origin_bridge_nf_ipt} >/dev/null 2>&1
-	origin_bridge_nf_ip6t=$(get_cache_var "origin_bridge_nf_ip6t")
-	[ -n "${origin_bridge_nf_ip6t}" ] && sysctl -w net.bridge.bridge-nf-call-ip6tables=${origin_bridge_nf_ip6t} >/dev/null 2>&1
+	rm -rf $GLOBAL_DNSMASQ_CONF
+	rm -rf $GLOBAL_DNSMASQ_CONF_PATH
+	[ "1" = "1" ] && {
+		#restore logic
+		bak_dnsmasq_dns_redirect=$(config_t_get global dnsmasq_dns_redirect)
+		[ -n "${bak_dnsmasq_dns_redirect}" ] && {
+			uci -q set dhcp.@dnsmasq[0].dns_redirect="${bak_dnsmasq_dns_redirect}"
+			uci -q commit dhcp
+			uci -q delete ${CONFIG}.@global[0].dnsmasq_dns_redirect
+			uci -q commit ${CONFIG}
+		}
+		if [ -z "$(get_cache_var "ACL_default_dns_port")" ] || [ -n "${bak_dnsmasq_dns_redirect}" ]; then
+			lua $APP_PATH/helper_dnsmasq.lua restart -LOG 0
+		fi
+		bak_bridge_nf_ipt=$(get_cache_var "bak_bridge_nf_ipt")
+		[ -n "${bak_bridge_nf_ipt}" ] && sysctl -w net.bridge.bridge-nf-call-iptables=${bak_bridge_nf_ipt} >/dev/null 2>&1
+		bak_bridge_nf_ip6t=$(get_cache_var "bak_bridge_nf_ip6t")
+		[ -n "${bak_bridge_nf_ip6t}" ] && sysctl -w net.bridge.bridge-nf-call-ip6tables=${bak_bridge_nf_ip6t} >/dev/null 2>&1
+	}
 	rm -rf $TMP_PATH
 	rm -rf /tmp/lock/${CONFIG}_socks_auto_switch*
 	echolog "清空并关闭相关程序和缓存完成。"
@@ -1339,6 +1343,7 @@ REMOTE_FAKEDNS=$(config_t_get global remote_fakedns '0')
 REMOTE_DNS_QUERY_STRATEGY=$(config_t_get global remote_dns_query_strategy UseIPv4)
 WRITE_IPSET_DIRECT=$(config_t_get global write_ipset_direct 1)
 DNS_CACHE=$(config_t_get global dns_cache 1)
+DNS_REDIRECT=$(config_t_get global dns_redirect 1)
 
 RESOLVFILE=/tmp/resolv.conf.d/resolv.conf.auto
 [ -f "${RESOLVFILE}" ] && [ -s "${RESOLVFILE}" ] || RESOLVFILE=/tmp/resolv.conf.auto
@@ -1350,6 +1355,19 @@ DEFAULT_DNSMASQ_CFGID=$(uci show dhcp.@dnsmasq[0] |  awk -F '.' '{print $2}' | a
 DEFAULT_DNS=$(uci show dhcp.@dnsmasq[0] | grep "\.server=" | awk -F '=' '{print $2}' | sed "s/'//g" | tr ' ' '\n' | grep -v "\/" | head -2 | sed ':label;N;s/\n/,/;b label')
 [ -z "${DEFAULT_DNS}" ] && DEFAULT_DNS=$(echo -n $ISP_DNS | tr ' ' '\n' | head -2 | tr '\n' ',')
 AUTO_DNS=${DEFAULT_DNS:-119.29.29.29}
+
+DNSMASQ_CONF_DIR=/tmp/dnsmasq.d
+DEFAULT_DNSMASQ_CFGID="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
+if [ -f "/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID" ]; then
+	DNSMASQ_CONF_DIR="$(awk -F '=' '/^conf-dir=/ {print $2}' "/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID")"
+	if [ -n "$DNSMASQ_CONF_DIR" ]; then
+		DNSMASQ_CONF_DIR=${DNSMASQ_CONF_DIR%*/}
+	else
+		DNSMASQ_CONF_DIR="/tmp/dnsmasq.d"
+	fi
+fi
+GLOBAL_DNSMASQ_CONF=${DNSMASQ_CONF_DIR}/dnsmasq-${CONFIG}.conf
+GLOBAL_DNSMASQ_CONF_PATH=${GLOBAL_ACL_PATH}/dnsmasq.d
 
 PROXY_IPV6=$(config_t_get global_forwarding ipv6_tproxy 0)
 
