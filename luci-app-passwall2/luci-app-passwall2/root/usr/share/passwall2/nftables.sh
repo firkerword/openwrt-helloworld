@@ -384,6 +384,8 @@ load_acl() {
 					[ -z "${device}" ] && device="${interface}"
 					_ipt_source="iifname ${device} "
 					msg="源接口【${device}】，"
+				else
+					msg="源接口【所有】，"
 				fi
 				if [ -n "$(echo ${i} | grep '^iprange:')" ]; then
 					_iprange=$(echo ${i} | sed 's#iprange:##g')
@@ -405,6 +407,8 @@ load_acl() {
 					_ipt_source=$(factor ${_mac} "${_ipt_source}ether saddr")
 					msg="${msg}MAC【${_mac}】，"
 					unset _mac
+				elif [ -n "$(echo ${i} | grep '^any')" ]; then
+					msg="${msg}所有设备，"
 				else
 					continue
 				fi
@@ -986,7 +990,7 @@ add_firewall_rule() {
 	#  加载ACLS
 	load_acl
 
-	filter_direct_node_list
+	filter_direct_node_list > /dev/null 2>&1 &
 
 	echolog "防火墙规则加载完成！"
 }

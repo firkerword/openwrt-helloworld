@@ -422,7 +422,7 @@ run_xray() {
 		esac
 		[ -n "$remote_dns_detour" ] && DNS_REMOTE_ARGS="${DNS_REMOTE_ARGS} -remote_dns_detour ${remote_dns_detour}"
 		[ -n "$remote_dns_query_strategy" ] && DNS_REMOTE_ARGS="${DNS_REMOTE_ARGS} -remote_dns_query_strategy ${remote_dns_query_strategy}"
-		[ -n "$remote_dns_client_ip" ] && DNS_REMOTE_ARGS="${DNS_REMOTE_ARGS} -dns_client_ip ${remote_dns_client_ip}"
+		[ -n "$remote_dns_client_ip" ] && DNS_REMOTE_ARGS="${DNS_REMOTE_ARGS} -remote_dns_client_ip ${remote_dns_client_ip}"
 		[ "$remote_fakedns" = "1" ] && _extra_param="${_extra_param} -remote_dns_fake 1 -remote_dns_fake_strategy ${remote_dns_query_strategy}"
 
 		local independent_dns
@@ -449,7 +449,7 @@ run_xray() {
 
 run_singbox() {
 	local flag node redir_port socks_address socks_port socks_username socks_password http_address http_port http_username http_password
-	local dns_listen_port direct_dns_query_strategy remote_dns_protocol remote_dns_udp_server remote_dns_tcp_server remote_dns_doh remote_dns_detour remote_fakedns remote_dns_query_strategy dns_cache write_ipset_direct
+	local dns_listen_port direct_dns_query_strategy remote_dns_protocol remote_dns_udp_server remote_dns_tcp_server remote_dns_doh remote_dns_client_ip remote_dns_detour remote_fakedns remote_dns_query_strategy dns_cache write_ipset_direct
 	local loglevel log_file config_file
 	local _extra_param=""
 	eval_set_val $@
@@ -536,6 +536,7 @@ run_singbox() {
 
 		[ -n "$remote_dns_detour" ] && _extra_param="${_extra_param} -remote_dns_detour ${remote_dns_detour}"
 		[ -n "$remote_dns_query_strategy" ] && _extra_param="${_extra_param} -remote_dns_query_strategy ${remote_dns_query_strategy}"
+		[ -n "$remote_dns_client_ip" ] && _extra_param="${_extra_param} -remote_dns_client_ip ${remote_dns_client_ip}"
 
 		[ -n "$dns_listen_port" ] && _extra_param="${_extra_param} -dns_listen_port ${dns_listen_port}"
 		[ -n "$dns_cache" ] && _extra_param="${_extra_param} -dns_cache ${dns_cache}"
@@ -797,6 +798,8 @@ run_global() {
 			-DEFAULT_DNS ${AUTO_DNS} -LOCAL_DNS ${LOCAL_DNS:-${AUTO_DNS}} -TUN_DNS ${TUN_DNS} \
 			-NFTFLAG ${nftflag:-0} \
 			-NO_LOGIC_LOG ${NO_LOGIC_LOG:-0}
+		uci -q add_list dhcp.@dnsmasq[0].addnmount=${GLOBAL_DNSMASQ_CONF_PATH}
+		uci -q commit dhcp
 		lua $APP_PATH/helper_dnsmasq.lua logic_restart -LOG 1
 	else
 		#Run a copy dnsmasq instance, DNS hijack for that need proxy devices.
@@ -1118,27 +1121,32 @@ acl_app() {
 
 			[ "$enabled" = "1" ] || continue
 
-			for s in $sources; do
-				local s2
-				is_iprange=$(lua_api "iprange(\"${s}\")")
-				if [ "${is_iprange}" = "true" ]; then
-					s2="iprange:${s}"
-				elif [ -n "$(echo ${s} | grep '^ipset:')" ]; then
-					s2="ipset:${s}"
-				else
-					_ip_or_mac=$(lua_api "ip_or_mac(\"${s}\")")
-					if [ "${_ip_or_mac}" = "ip" ]; then
-						s2="ip:${s}"
-					elif [ "${_ip_or_mac}" = "mac" ]; then
-						s2="mac:${s}"
+			if [ -n "${sources}" ]; then
+				for s in $sources; do
+					local s2
+					is_iprange=$(lua_api "iprange(\"${s}\")")
+					if [ "${is_iprange}" = "true" ]; then
+						s2="iprange:${s}"
+					elif [ -n "$(echo ${s} | grep '^ipset:')" ]; then
+						s2="ipset:${s}"
+					else
+						_ip_or_mac=$(lua_api "ip_or_mac(\"${s}\")")
+						if [ "${_ip_or_mac}" = "ip" ]; then
+							s2="ip:${s}"
+						elif [ "${_ip_or_mac}" = "mac" ]; then
+							s2="mac:${s}"
+						fi
 					fi
-				fi
-				[ -n "${s2}" ] && source_list="${source_list}\n${s2}"
-				unset s2
-			done
+					[ -n "${s2}" ] && source_list="${source_list}\n${s2}"
+					unset s2
+				done
+			else
+				source_list="any"
+			fi
 
-			mkdir -p $TMP_ACL_PATH/$sid
-			[ ! -z "${source_list}" ] && echo -e "${source_list}" | sed '/^$/d' > $TMP_ACL_PATH/$sid/source_list
+			local acl_path=${TMP_ACL_PATH}/$sid
+			mkdir -p ${acl_path}
+			[ -n "${source_list}" ] && echo -e "${source_list}" | sed '/^$/d' > ${acl_path}/source_list
 
 			node=${node:-default}
 			tcp_no_redir_ports=${tcp_no_redir_ports:-default}
@@ -1234,7 +1242,7 @@ start() {
 				USE_TABLES="nftables"
 				nftflag=1
 				config_t_set global_forwarding use_nft 1
-				uci commit ${CONFIG}
+				uci -q commit ${CONFIG}
 			fi
 		fi
 	else
@@ -1286,7 +1294,7 @@ stop() {
 	delete_ip2route
 	kill_all v2ray-plugin obfs-local
 	pgrep -f "sleep.*(6s|9s|58s)" | xargs kill -9 >/dev/null 2>&1
-	pgrep -af "${CONFIG}/" | awk '! /app\.sh|subscribe\.lua|rule_update\.lua|tasks\.sh/{print $1}' | xargs kill -9 >/dev/null 2>&1
+	pgrep -af "${CONFIG}/" | awk '! /app\.sh|subscribe\.lua|rule_update\.lua|tasks\.sh|ujail/{print $1}' | xargs kill -9 >/dev/null 2>&1
 	unset V2RAY_LOCATION_ASSET
 	unset XRAY_LOCATION_ASSET
 	stop_crontab
@@ -1302,6 +1310,8 @@ stop() {
 			uci -q commit ${CONFIG}
 		}
 		if [ -z "$(get_cache_var "ACL_default_dns_port")" ] || [ -n "${bak_dnsmasq_dns_redirect}" ]; then
+			uci -q del_list dhcp.@dnsmasq[0].addnmount="${GLOBAL_DNSMASQ_CONF_PATH}"
+			uci -q commit dhcp
 			lua $APP_PATH/helper_dnsmasq.lua restart -LOG 0
 		fi
 		bak_bridge_nf_ipt=$(get_cache_var "bak_bridge_nf_ipt")
