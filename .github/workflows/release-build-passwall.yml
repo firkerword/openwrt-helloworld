@@ -31,13 +31,13 @@ jobs:
           echo "TAG_TIME=$(date +"%Y%m%d")" >> $GITHUB_ENV
         
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@main
         with:
           name: passwall-${{ matrix.arch }}
           path: bin/packages/${{ matrix.arch }}/packages_ci/*.ipk
 
       - name: Upload packages
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@main
         with:
           name: "passwall-smartdns-${{ matrix.arch }}"
           token: ${{ secrets.workflow_token }}
