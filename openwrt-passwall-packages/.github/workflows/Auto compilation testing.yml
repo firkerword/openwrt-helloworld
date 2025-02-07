@@ -22,7 +22,7 @@ env:
 
 jobs:
   job_auto_compile:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: test build (${{ matrix.platform }})
     strategy:
       fail-fast: false
@@ -114,7 +114,6 @@ jobs:
 
     - name: Initialization ${{ matrix.platform }} compile environment
       run: |
-        docker rmi `docker images -q`
         sudo -E rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d /usr/local/lib/android
         echo "install packages!!!!!!"
         sudo -E apt-get -qq update
@@ -145,6 +144,9 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a -f -p passwall_packages
 
+        rm -rf feeds/packages/lang/golang
+        git clone https://github.com/sbwml/packages_lang_golang -b 23.x feeds/packages/lang/golang
+
         echo "CONFIG_ALL_NONSHARED=n" > .config
         echo "CONFIG_ALL_KMODS=n" >> .config
         echo "CONFIG_ALL=n" >> .config
@@ -171,7 +173,7 @@ jobs:
         for DIR in "${DIRS[@]}"; do
           if [ -d "package/feeds/passwall_packages/$DIR" ]; then
             echo "Compiling changes in directory: $DIR"
-            make package/feeds/passwall_packages/$DIR/compile -j$(nproc) || exit 1
+            make package/feeds/passwall_packages/$DIR/compile -j$(nproc) V=s || exit 1
           else
             echo "Directory $DIR does not exist"
             exit 1

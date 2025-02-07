@@ -91,16 +91,44 @@ msgstr "TLS 主机名"
 msgid "allowInsecure"
 msgstr "允许不安全连接"
 
+msgid "Enable Mux.Cool"
+msgstr "启用 Mux.Cool"
+
+msgid "Enable Xudp Mux"
+msgstr "启用 Xudp Mux"
+
+msgid "Enable Multipath TCP, need to be enabled in both server and client configuration."
+msgstr "启用 Multipath TCP，需在服务端和客户端配置中同时启用。"
 
 msgid "concurrency"
 msgstr "TCP 最大并发连接数"
 
+msgid "Default: disable. When entering a negative number, such as -1, The Mux module will not be used to carry TCP traffic."
+msgstr "默认：禁用。填负数时，如 -1，不使用 Mux 模块承载 TCP 流量。"
+
+msgid "Min value is 1, Max value is 128. When omitted or set to 0, it equals 8."
+msgstr "最小值 1，最大值 128。省略或者填 0 时都等于 8。"
+
 msgid "xudpConcurrency"
 msgstr "UDP 最大并发连接数"
+
+msgid "Default:16. When entering a negative number, such as -1, The Mux module will not be used to carry UDP traffic, Use original UDP transmission method of proxy protocol."
+msgstr "默认值：16。填负数时，如 -1，不使用 Mux 模块承载 UDP 流量。将使用代理协议原本的 UDP 传输方式。"
+
+msgid "Min value is 1, Max value is 1024. When omitted or set to 0, Will same path as TCP traffic."
+msgstr "最小值 1，最大值 1024。 省略或者填 0 时，将与 TCP 流量走同一条路，也就是传统的行为。"
 
 msgid "xudpProxyUDP443"
 msgstr "对被代理的 UDP/443 流量处理方式"
 
+msgid "Default reject rejects traffic."
+msgstr "默认 reject 拒绝流量。"
+
+msgid "allow: Allows use Mux connection."
+msgstr "allow：允许走 Mux 连接。"
+
+msgid "skip: Not use Mux module to carry UDP 443 traffic, Use original UDP transmission method of proxy protocol."
+msgstr "skip：不使用 Mux 模块承载 UDP 443 流量，将使用代理协议原本的 UDP 传输方式。"
 
 msgid "custom_tcpcongestion"
 msgstr "连接服务器节点的 TCP 拥塞控制算法"
@@ -305,6 +333,9 @@ msgstr "服务器"
 msgid "TCP Fast Open"
 msgstr "TCP 快速打开"
 
+msgid "Enabling TCP Fast Open Requires Server Support."
+msgstr "启用 TCP 快速打开需要服务端支持。"
+
 msgid "Status"
 msgstr "状态"
 
@@ -377,6 +408,12 @@ msgstr "强制走代理"
 msgid "UDP Relay"
 msgstr "UDP 中继"
 
+msgid "Restart ShadowSocksR Plus+"
+msgstr "重启 ShadowSocksR Plus+"
+
+msgid "Restart Service"
+msgstr "重启服务"
+
 msgid "Google Connectivity"
 msgstr "【谷歌】连通性检查"
 
@@ -409,6 +446,9 @@ msgstr "【中国大陆 IP 段】数据库"
 
 msgid "Netflix IP Data"
 msgstr "【Netflix IP 段】数据库"
+
+msgid "Apple Domains Data"
+msgstr "【Apple 域名】数据库"
 
 msgid "Advertising Data"
 msgstr "【广告屏蔽】数据库"
@@ -469,6 +509,15 @@ msgstr "启用广告屏蔽"
 
 msgid "adblock_url"
 msgstr "广告屏蔽更新 URL"
+
+msgid "Apple Domains Update url"
+msgstr "Apple 域名更新 URL"
+
+msgid "Apple Domains DNS"
+msgstr "Apple 域名 DNS"
+
+msgid "If empty, Not change Apple domains parsing DNS (Default is empty)"
+msgstr "如果为空，则不更改 Apple 域名解析 DNS（默认为空）"
 
 msgid "gfwlist Update url"
 msgstr "GFW 列表更新 URL"
@@ -595,6 +644,36 @@ msgstr "格式为 IP:PORT（默认：禁用）"
 
 msgid "Update time (every day)"
 msgstr "更新时间（每天）"
+
+msgid "Update Time (Every Week)"
+msgstr "更新时间（每周）"
+
+msgid "Update Interval (min)"
+msgstr "更新间隔 (分钟)"
+
+msgid "Every Day"
+msgstr "每天"
+
+msgid "Every Monday"
+msgstr "每周一"
+
+msgid "Every Tuesday"
+msgstr "每周二"
+
+msgid "Every Wednesday"
+msgstr "每周三"
+
+msgid "Every Thursday"
+msgstr "每周四"
+
+msgid "Every Friday"
+msgstr "每周五"
+
+msgid "Every Saturday"
+msgstr "每周六"
+
+msgid "Every Sunday"
+msgstr "每周日"
 
 msgid "Auto Update Server subscription, GFW list and CHN route"
 msgstr "自动更新服务器订阅、GFW 列表和中国大陆 IP 段"
@@ -842,6 +921,30 @@ msgstr "本机服务端"
 msgid "Global SOCKS5 Proxy Server"
 msgstr "SOCKS5 代理服务端（全局）"
 
+msgid "Socks5 Auth Mode"
+msgstr "Socks5 认证方式"
+
+msgid "Socks protocol auth methods, default:noauth."
+msgstr "Socks 协议的认证方式，默认值：noauth。"
+
+msgid "Socks5 User"
+msgstr "Socks5 用户名"
+
+msgid "Only when Socks5 Auth Mode is password valid, Mandatory."
+msgstr "仅当 Socks5 认证方式为 Password 时有效，必填。"
+
+msgid "Socks5 Password"
+msgstr "Socks5 密码"
+
+msgid "Only when Socks5 Auth Mode is password valid, Not mandatory."
+msgstr "仅当 Socks5 认证方式为 Password 时有效，非必填。"
+
+msgid "Enabled Mixed"
+msgstr "启用 Mixed"
+
+msgid "Mixed as an alias of socks, default:Enabled."
+msgstr "Mixed 作为 SOCKS 的别名，默认：启用。"
+
 msgid "Xray Fragment Settings"
 msgstr "Xray 分片设置"
 
@@ -878,8 +981,8 @@ msgstr "UDP 噪声，在某些情况下可以绕过一些针对 UDP 协议的限
 msgid "To send noise packets, select \"Noise\" in Xray Settings."
 msgstr "在 Xray 设置中勾选 “噪声” 以发送噪声包。"
 
-msgid "For specific usage, see: "
-msgstr "具体使用方法参见："
+msgid "For specific usage, see:"
+msgstr "具体使用方法，请参见："
 
 msgid "Click to the page"
 msgstr "点击前往"
@@ -943,6 +1046,27 @@ msgstr "SplitHTTP 主机名"
 
 msgid "Splithttp Path"
 msgstr "SplitHTTP 路径"
+
+msgid "XHTTP Mode"
+msgstr "XHTTP 模式"
+
+msgid "XHTTP Host"
+msgstr "XHTTP 主机名"
+
+msgid "XHTTP Path"
+msgstr "XHTTP 路径"
+
+msgid "XHTTP Extra"
+msgstr "XHTTP 附加项"
+
+msgid "Enable this option to configure XHTTP Extra (JSON format)."
+msgstr "启用此选项配置 XHTTP 附加项（JSON 格式）。"
+
+msgid "Configure XHTTP Extra Settings (JSON format), see:"
+msgstr "配置 XHTTP 额外设置（JSON 格式），请参见："
+
+msgid "Invalid JSON format"
+msgstr "无效的 JSON 格式"
 
 msgid "HTTP/2 Host"
 msgstr "HTTP/2 主机名"
@@ -1126,3 +1250,45 @@ msgstr "socks5 服务器可以从外部接收的最大数据包大小（单位�
 
 msgid "Disable ChinaDNS-NG"
 msgstr "直通模式（禁用 ChinaDNS-NG）"
+
+msgid "Clear logs"
+msgstr "清空日志"
+
+msgid "Backup and Restore"
+msgstr "备份还原"
+
+msgid "Backup or Restore Client and Server Configurations."
+msgstr "备份或还原客户端及服务端配置。"
+
+msgid "Note: Restoring configurations across different versions may cause compatibility issues."
+msgstr "注意：不同版本间的配置恢复可能会导致兼容性问题。"
+
+msgid "Create Backup File"
+msgstr "创建备份文件"
+
+msgid "Restore Backup File"
+msgstr "恢复备份文件"
+
+msgid "DL Backup"
+msgstr "下载备份"
+
+msgid "RST Backup"
+msgstr "恢复备份"
+
+msgid "UL Restore"
+msgstr "上传恢复"
+
+msgid "CLOSE WIN"
+msgstr "关闭窗口"
+
+msgid "Restore to default configuration"
+msgstr "恢复默认配置"
+
+msgid "Do Reset"
+msgstr "执行重置"
+
+msgid "Do you want to restore the client to default settings?"
+msgstr "是否要恢复客户端默认配置？"
+
+msgid "Are you sure you want to restore the client to default settings?"
+msgstr "是否真的要恢复客户端默认配置？"

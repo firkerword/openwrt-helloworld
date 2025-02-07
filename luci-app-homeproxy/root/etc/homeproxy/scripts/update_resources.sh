@@ -42,11 +42,12 @@ check_list_update() {
 	local listrepo="$2"
 	local listref="$3"
 	local listname="$4"
+	local github_token="$(uci -q get homeproxy.infra.github_token)"
 	local wget="wget --timeout=10 -q"
 
 	set_lock "set" "$listtype"
 
-	local list_info="$($wget -O- "https://api.github.com/repos/$listrepo/commits?sha=$listref&path=$listname")"
+	local list_info="$($wget --header "Authorization: ${github_token:-null}" -O- "https://api.github.com/repos/$listrepo/commits?sha=$listref&path=$listname")"
 	local list_sha="$(echo -e "$list_info" | jsonfilter -e "@[0].sha")"
 	local list_ver="$(echo -e "$list_info" | jsonfilter -e "@[0].commit.message" | grep -Eo "[0-9-]+" | tr -d '-')"
 	if [ -z "$list_sha" ] || [ -z "$list_ver" ]; then
@@ -67,8 +68,7 @@ check_list_update() {
 		log "[$(to_upper "$listtype")] Local version: $local_list_ver, latest version: $list_ver."
 	fi
 
-	$wget "https://fastly.jsdelivr.net/gh/$listrepo@$list_sha/$listname" -O "$RUN_DIR/$listname"
-	if [ ! -s "$RUN_DIR/$listname" ]; then
+	if ! $wget "https://fastly.jsdelivr.net/gh/$listrepo@$list_sha/$listname" -O "$RUN_DIR/$listname" || [ ! -s "$RUN_DIR/$listname" ]; then
 		rm -f "$RUN_DIR/$listname"
 		log "[$(to_upper "$listtype")] Update failed."
 

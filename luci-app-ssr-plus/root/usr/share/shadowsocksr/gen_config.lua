@@ -4,7 +4,7 @@ local ucursor = require "luci.model.uci".cursor()
 local json = require "luci.jsonc"
 
 local server_section = arg[1]
-local proto = arg[2]
+local proto = arg[2] or "tcp"
 local local_port = arg[3] or "0"
 local socks_port = arg[4] or "0"
 
@@ -12,6 +12,7 @@ local chain = arg[5] or "0"
 local chain_local_port = string.split(chain, "/")[2] or "0"
 
 local server = ucursor:get_all("shadowsocksr", server_section)
+local socks_server = ucursor:get_all("shadowsocksr", "@socks5_proxy[0]") or {}
 local xray_fragment = ucursor:get_all("shadowsocksr", "@global_xray_fragment[0]") or {}
 local xray_noise = ucursor:get_all("shadowsocksr", "@xray_noise_packets[0]") or {}
 local outbound_settings = nil
@@ -28,7 +29,7 @@ function vmess_vless()
 						alterId = (server.v2ray_protocol == "vmess" or not server.v2ray_protocol) and tonumber(server.alter_id) or nil,
 						security = (server.v2ray_protocol == "vmess" or not server.v2ray_protocol) and server.security or nil,
 						encryption = (server.v2ray_protocol == "vless") and server.vless_encryption or nil,
-						flow = ((server.xtls == '1') or (server.tls == '1') or (server.reality == '1')) and server.tls_flow or nil
+						flow = (((server.xtls == '1') or (server.tls == '1') or (server.reality == '1')) and (((server.tls_flow ~= "none") and server.tls_flow) or ((server.xhttp_tls_flow ~= "none") and server.xhttp_tls_flow))) or nil
 					}
 				}
 			}
@@ -178,12 +179,22 @@ end
 
 	-- 开启 socks 代理
 	-- 检查是否启用 socks 代理
-if proto:find("tcp") and socks_port ~= "0" then
+if proto and proto:find("tcp") and socks_port ~= "0" then
     table.insert(Xray.inbounds, {
-	-- socks
+        -- socks
         protocol = "socks",
         port = tonumber(socks_port),
-        settings = {auth = "noauth", udp = true}
+        settings = (socks_server.server ~= "same") and {
+			auth = socks_server.socks5_auth,
+			udp = true,
+			mixed = (socks_server.socks5_mixed == '1') and true or false,
+			accounts = (socks_server.socks5_auth ~= "noauth") and {
+				{
+					user = socks_server.socks5_user,
+					pass = socks_server.socks5_pass
+				}
+			} or nil
+		} or nil
     })
 end
 
@@ -198,7 +209,7 @@ end
 				security = (server.xtls == '1') and "xtls" or (server.tls == '1') and "tls" or (server.reality == '1') and "reality" or nil,
 				tlsSettings = (server.tls == '1') and {
 					-- tls
-					alpn = server.tls_alpn,
+					alpn = (server.transport == "xhttp" and server.xhttp_alpn ~= "") and server.xhttp_alpn or server.tls_alpn,
 					fingerprint = server.fingerprint,
 					allowInsecure = (server.insecure == "1"),
 					serverName = server.tls_host,
@@ -214,32 +225,22 @@ end
 					minVersion = "1.3"
 				} or nil,
 				realitySettings = (server.reality == '1') and {
+					alpn =  (server.transport == "xhttp" and server.xhttp_alpn ~= "") and server.xhttp_alpn or nil,
 					publicKey = server.reality_publickey,
 					shortId = server.reality_shortid,
 					spiderX = server.reality_spiderx,
 					fingerprint = server.fingerprint,
 					serverName = server.tls_host
 				} or nil,
-				tcpSettings = (server.transport == "tcp" and server.tcp_guise == "http") and {
+				rawSettings = (server.transport == "raw" or server.transport == "tcp") and {
 					-- tcp
 					header = {
-						type = server.tcp_guise,
-						request = {
+						type = server.tcp_guise or "none",
+						request = (server.tcp_guise == "http") and {
 							-- request
 							path = {server.http_path} or {"/"},
 							headers = {Host = {server.http_host} or {}}
-						}
-					}
-				} or nil,
-				rawSettings = (server.transport == "raw" and server.raw_guise == "http") and {
-					-- raw
-					header = {
-						type = server.raw_guise,
-						request = {
-							-- request
-							path = {server.http_path} or {"/"},
-							headers = {Host = {server.http_host} or {}}
-						}
+						} or nil
 					}
 				} or nil,
 				kcpSettings = (server.transport == "kcp") and {
@@ -256,10 +257,7 @@ end
 				} or nil,
 				wsSettings = (server.transport == "ws") and (server.ws_path or server.ws_host or server.tls_host) and {
 					-- ws
-					headers = (server.ws_host or server.tls_host) and {
-						-- headers
-						Host = server.ws_host or server.tls_host
-					} or nil,
+					Host = server.ws_host or server.tls_host or nil,
 					path = server.ws_path,
 					maxEarlyData = tonumber(server.ws_ed) or nil,
 					earlyDataHeaderName = server.ws_ed_header or nil
@@ -273,6 +271,20 @@ end
 					-- splithttp
 					host = (server.splithttp_host or server.tls_host) or nil,
 					path = server.splithttp_path or "/"
+				} or nil,
+				xhttpSettings = (server.transport == "xhttp") and {
+					-- xhttp
+					mode = server.xhttp_mode or "auto",
+					host = (server.xhttp_host or server.tls_host) or nil,
+					path = server.xhttp_path or "/",
+					extra = (server.enable_xhttp_extra == "1" and server.xhttp_extra) and (function()
+						local success, parsed = pcall(json.parse, server.xhttp_extra)
+							if success then
+								return parsed.extra or parsed
+							else
+								return nil
+							end
+						end)() or nil
 				} or nil,
 				httpSettings = (server.transport == "h2") and {
 					-- h2
@@ -297,18 +309,20 @@ end
 					initial_windows_size = tonumber(server.initial_windows_size) or nil
 				} or nil,
 				sockopt = {
-					tcpMptcp = (server.mptcp == "1") and true or false, -- MPTCP
-					tcpNoDelay = (server.mptcp == "1") and true or false, -- MPTCP
+					mark = 250,
+					tcpFastOpen = ((server.transport == "xhttp" and server.tcpfastopen == "1") and true or false) or (server.transport ~= "xhttp") and nil, -- XHTTP Tcp Fast Open
+					tcpMptcp = (server.mptcp == "1") and true or nil, -- MPTCP
+					Penetrate = (server.mptcp == "1") and true or nil, -- Penetrate MPTCP
 					tcpcongestion = server.custom_tcpcongestion, -- 连接服务器节点的 TCP 拥塞控制算法
 					dialerProxy = (xray_fragment.fragment == "1" or xray_fragment.noise == "1") and "dialerproxy" or nil
 				}
 			} or nil,
 			mux = (server.v2ray_protocol ~= "wireguard") and {
 				-- mux
-				enabled = (server.mux == "1") and true or false, -- Mux
-				concurrency = tonumber(server.concurrency), -- TCP 最大并发连接数
-				xudpConcurrency = tonumber(server.xudpConcurrency), -- UDP 最大并发连接数
-				xudpProxyUDP443 = server.xudpProxyUDP443 -- 对被代理的 UDP/443 流量处理方式
+				enabled = (server.mux == "1" or server.xmux == "1") and true or false, -- Mux
+				concurrency = (server.mux == "1" and ((server.concurrency ~= "0") and tonumber(server.concurrency) or 8)) or (server.xmux == "1" and -1) or nil, -- TCP 最大并发连接数
+				xudpConcurrency = ((server.xudpConcurrency ~= "0") and tonumber(server.xudpConcurrency)) or nil, -- UDP 最大并发连接数
+				xudpProxyUDP443 = (server.mux == "1") and server.xudpProxyUDP443 or nil -- 对被代理的 UDP/443 流量处理方式
 			} or nil
 		}
 	}
@@ -335,8 +349,11 @@ if xray_fragment.fragment ~= "0" or (xray_fragment.noise ~= "0" and xray_noise.e
 		},
 		streamSettings = {
 			sockopt = {
-			tcpMptcp = (server.mptcp == "1") and true or false, -- MPTCP
-			tcpNoDelay = (server.mptcp == "1") and true or false -- MPTCP
+			mark = 250,
+			tcpFastOpen = ((server.transport == "xhttp" and server.tcpfastopen == "1") and true or false) or (server.transport ~= "xhttp") and nil, -- XHTTP Tcp Fast Open
+			tcpMptcp = (server.mptcp == "1") and true or nil, -- MPTCP
+			Penetrate = (server.mptcp == "1") and true or nil, -- Penetrate MPTCP
+			tcpcongestion = server.custom_tcpcongestion -- 连接服务器节点的 TCP 拥塞控制算法
 			}
 		}
 	})
@@ -387,7 +404,7 @@ local ss = {
 	server_port = tonumber(server.server_port),
 	local_address = "0.0.0.0",
 	local_port = tonumber(local_port),
-	mode = (proto == "tcp,udp") and "tcp_and_udp" or proto .. "_only",
+	mode = (proto == "tcp,udp") and "tcp_and_udp" or (proto .. "_only"),
 	password = server.password,
 	method = server.encrypt_method_ss,
 	timeout = tonumber(server.timeout),
@@ -395,7 +412,7 @@ local ss = {
 	reuse_port = true
 }
 local hysteria = {
-	server = (server.server_port and (server.port_range and (server.server .. ":" .. server.server_port .. "," .. server.port_range) or server.server .. ":" .. server.server_port) or (server.port_range and server.server .. ":" .. server.port_range or server.server .. ":443")),
+	server = (server.server_port and (server.port_range and (server.server .. ":" .. server.server_port .. "," .. server.port_range) or (server.server .. ":" .. server.server_port) or (server.port_range and server.server .. ":" .. server.port_range or server.server .. ":443"))),
 	bandwidth = (server.uplink_capacity or server.downlink_capacity) and {
 	up = tonumber(server.uplink_capacity) and tonumber(server.uplink_capacity) .. " mbps" or nil,
 	down = tonumber(server.downlink_capacity) and tonumber(server.downlink_capacity) .. " mbps" or nil 
